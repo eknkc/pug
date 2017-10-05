@@ -1,0 +1,494 @@
+{
+  package compiler
+
+  func toSlice(v interface{}) []interface{} {
+    if v == nil {
+      return nil
+    }
+    return v.([]interface{})
+  }
+
+  func pos(p position) Position {
+    return Position {
+      Line: p.line,
+      Col: p.col,
+      Offset: p.offset,
+    }
+  }
+
+  func binary(first, rest interface{}, curpos position) (Expression, error) {
+    restElem := toSlice(rest)
+
+    if len(restElem) == 0 {
+      return first.(Expression), nil
+    }
+
+    var cur Expression = first.(Expression)
+
+    for _, x := range restElem {
+      elem := toSlice(x)
+      cur = &BinaryExpression{X: cur, Y: elem[3].(Expression), Op: elem[1].(string), GraphNode: NewNode(pos(curpos))}
+    }
+
+    return cur, nil
+  }
+}
+
+Input <- l:List EOF {
+  return &Root{List: l.(*List)}, nil
+}
+
+List <- node:ListNode list:List {
+  listItem := list.(*List)
+  if node != nil {
+    listItem.Nodes = append([]Node{node.(Node)}, listItem.Nodes...)
+  }
+  listItem.Position = pos(c.pos)
+
+  return listItem, nil
+} / &(Outdent / EOF) {
+  return &List{GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+IndentedList <- Indent list:List Outdent {
+  return list, nil
+}
+
+IndentedRawText <- Indent t:RawText Outdent {
+  return &Text{Value: t.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+RawText <- Indent rt:RawText Outdent tail:RawText {
+  return rt.(string) + tail.(string), nil
+} / (&Outdent / &EOF) {
+  return "", nil
+} / head:. tail:RawText {
+  return string(head.([]byte)) + tail.(string), nil
+}
+
+ListNode "listnode" <-
+  Comment /
+  Import /
+  Extend /
+  PipeText /
+  If /
+  Each /
+  DocType /
+  Mixin /
+  MixinCall /
+  Assignment /
+  Block /
+  Tag /
+  (_ [\n]) { return nil, nil }
+
+// Misc
+DocType "doctype" = _ "doctype" _ val:LineText NL {
+  return &DocType{Value: val.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+// Tags
+
+Tag <- tag:TagHeader list:IndentedList? {
+  tagElem := tag.(*Tag)
+
+  if list != nil {
+    tagElem.Block = list.(*List)
+  }
+
+  return tagElem, nil
+}
+
+TagHeader <- _ name:TagName attrs:TagAttributes? tl:(__ TextList?)? NL {
+  tag := &Tag{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+  if attrs != nil {
+    tag.Attributes = attrs.([]*Attribute)
+  }
+  if tl != nil {
+    tag.Text = toSlice(tl)[1].(*TextList)
+  }
+  return tag, nil
+} / _ name:TagName attrs:TagAttributes? '.' NL text:IndentedRawText? {
+  tag := &Tag{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+  if attrs != nil {
+    tag.Attributes = attrs.([]*Attribute)
+  }
+  if text != nil {
+    tag.Block = text.(*Text)
+  }
+  return tag, nil
+}
+
+TagName <- [_a-zA-Z] [_-:a-zA-Z0-9]* {
+  return string(c.text), nil
+}
+
+TagAttributes <- head:(TagAttributeClass / TagAttributeID) tail:TagAttributes? {
+  tailElem := []*Attribute{}
+
+  if tail != nil {
+    tailElem = tail.([]*Attribute)
+  }
+
+  return append(head.([]*Attribute), tailElem...), nil
+} / head:('(' _ (TagAttribute (__ TagAttribute)*) _ ')') tail:TagAttributes? {
+  tailElem := []*Attribute{}
+
+  if tail != nil {
+    tailElem = tail.([]*Attribute)
+  }
+
+  vals := toSlice(toSlice(head)[2]);
+
+  if len(vals) == 0 {
+    return tailElem, nil;
+  }
+
+  headAttrs := vals[0].([]*Attribute)
+  restAttrs := toSlice(vals[1]);
+
+  for _, a := range restAttrs {
+    restAttr := toSlice(a)
+    headAttrs = append(headAttrs, restAttr[1].([]*Attribute)...)
+  }
+
+  return append(headAttrs, tailElem...), nil
+}
+
+TagAttributeClass <- '.' name:ClassName {
+  return []*Attribute{&Attribute{Name: "class", Value: &StringExpression{Value: name.(string)}, GraphNode: NewNode(pos(c.pos))}}, nil
+}
+
+TagAttributeID <- '#' name:TagAttributeNameLiteral {
+  return []*Attribute{&Attribute{Name: "id", Value: &StringExpression{Value: name.(string)}, GraphNode: NewNode(pos(c.pos))}}, nil
+}
+
+TagAttribute <- name:TagAttributeName _ '=' _ value:Expression {
+  return []*Attribute{&Attribute{Name: name.(string), Value: value.(Expression), GraphNode: NewNode(pos(c.pos))}}, nil
+} / name:TagAttributeName {
+  return []*Attribute{&Attribute{Name: name.(string), GraphNode: NewNode(pos(c.pos))}}, nil
+}
+
+TagAttributeName <- '(' tn:TagAttributeNameLiteral ')' {
+  return tn, nil
+} / '[' tn:TagAttributeNameLiteral ']' {
+  return tn, nil
+} / tn:TagAttributeNameLiteral {
+  return tn, nil
+}
+
+ClassName <- [_-:a-zA-Z0-9]+ {
+  return string(c.text), nil
+}
+
+TagAttributeNameLiteral <- [@_a-zA-Z] [._-:a-zA-Z0-9]* {
+  return string(c.text), nil
+}
+
+// Logic
+If <- _ "if" __ expr:Expression _ NL block:IndentedList elseNode:Else? {
+  ifElem := &If{Condition: expr.(Expression), PositiveBlock: block.(Node), GraphNode: NewNode(pos(c.pos))}
+  if elseNode != nil {
+    ifElem.NegativeBlock = elseNode.(Node)
+  }
+  return ifElem, nil
+}
+
+Else <- _ "else" node:If {
+  return node, nil
+} / _ "else" _ NL block:IndentedList {
+  return block, nil
+}
+
+Each <- _ "each" __ v1:Variable v2:(_ ',' _ Variable)? _ "in" _ expr:Expression _ NL block:IndentedList {
+  eachElem := &Each{GraphNode: NewNode(pos(c.pos)), Block: block.(Node), ElementVariable: v1.(*Variable), Container: expr.(Expression)}
+  v2Slice := toSlice(v2)
+
+  if len(v2Slice) != 0 {
+    eachElem.IndexVariable = v2Slice[3].(*Variable)
+  }
+
+  return eachElem, nil
+}
+
+Assignment <- _ vr:Variable _ '=' _ expr:Expression _ NL {
+  return &Assignment{Variable: vr.(*Variable), Expression: expr.(Expression), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+// Mixin
+Mixin <- _ "mixin" __ name:Identifier _ args:MixinArguments? NL list:IndentedList {
+  mixinElem := &Mixin{Name: name.(string), Block: list.(Node), GraphNode: NewNode(pos(c.pos))}
+  if args != nil {
+    mixinElem.Arguments = args.([]MixinArgument)
+  }
+  return mixinElem, nil
+}
+
+MixinArguments <- '(' head:MixinArgument tail:(_ ',' _ MixinArgument)* ')' {
+  args := []MixinArgument{head.(MixinArgument)}
+
+  if tail != nil {
+    tailSlice := toSlice(tail)
+
+    for _, arg := range tailSlice {
+      argSlice := toSlice(arg)
+      args = append(args, argSlice[3].(MixinArgument))
+    }
+  }
+
+  return args, nil
+} / '(' _ ')' {
+  return nil, nil
+}
+
+MixinArgument <- name:Variable def:(_ '=' _ Expression)? {
+  argElem := MixinArgument{Name: name.(*Variable), GraphNode: NewNode(pos(c.pos))}
+
+  if def != nil {
+    defSlice := toSlice(def)
+    argElem.Default = defSlice[3].(Expression);
+  }
+
+  return argElem, nil
+}
+
+MixinCall <- _ '+' name:Identifier _ args:CallArguments? NL {
+  mcElem := &MixinCall{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+  if args != nil {
+    mcElem.Arguments = args.([]Expression)
+  }
+  return mcElem, nil
+}
+
+CallArguments <- '(' head:Expression? tail:(_ ',' _ Expression)* ')' {
+  args := []Expression{}
+
+  if head != nil {
+    args = append(args, head.(Expression))
+  }
+
+  if tail != nil {
+    tailSlice := toSlice(tail)
+
+    for _, arg := range tailSlice {
+      argSlice := toSlice(arg)
+      args = append(args, argSlice[3].(Expression))
+    }
+  }
+
+  return args, nil
+}
+
+// Import & Extend
+
+Import <- _ "include" 's'? __ file:String NL {
+  return &Import{File: file.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+Extend <- "extend" 's'? __ file:String {
+  return &Extend{File: file.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+Block <- _ "block" mod:(__ ("append" / "prepend"))? __ name:Identifier NL list:IndentedList? {
+  block := &Block{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+
+  if mod != nil {
+    modSlice := toSlice(mod)
+
+    if string(modSlice[1].([]byte)) == "append" {
+      block.Modifier = "append"
+    } else {
+      block.Modifier = "prepend"
+    }
+  }
+
+  if list != nil {
+    block.Block = list.(*List)
+  }
+
+  return block, nil
+}
+
+// Comments
+Comment <- _ "//" silent:'-'? _ comment:LineText NL {
+  isSilent := silent != nil
+  return &Comment{Value: comment.(string), Silent: isSilent, GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+LineText <- [^\n]* {
+  return string(c.text), nil
+}
+
+// Text
+PipeText <- _ ('|' / '<') _ tl:TextList NL {
+  return tl, nil
+}
+
+TextList <- intr:Interpolation tl:TextList {
+  intNode := intr.(*Interpolation)
+
+  if tl != nil {
+    tlnode := tl.(*TextList);
+    return &TextList{
+      Nodes: append([]Node{intNode}, tlnode.Nodes...),
+      GraphNode: NewNode(pos(c.pos)),
+    }, nil
+  }
+
+  return TextList{
+    Nodes: []Node{intNode},
+    GraphNode: NewNode(pos(c.pos)),
+  }, nil
+} / &NL {
+  return &TextList{GraphNode: NewNode(pos(c.pos))}, nil
+} / ch:. tl:TextList {
+  tlnode := tl.(*TextList);
+  chstr := string(ch.([]byte))
+
+  if len(tlnode.Nodes) > 0 {
+    if tn, ok := tlnode.Nodes[0].(*Text); ok {
+      tlnode.Nodes[0] = &Text{Value: chstr + tn.Value}
+      return tlnode, nil
+    }
+  }
+
+  tlnode.Nodes = append([]Node{&Text{Value: chstr, GraphNode: NewNode(pos(c.pos))}}, tlnode.Nodes...)
+  tlnode.Position = pos(c.pos)
+
+  return tlnode, nil
+}
+
+Indent <- "\u0001"
+Outdent <- "\u0002"
+
+Interpolation <- mod:('#' / '!') '{' expr:Expression '}' {
+  intElem := &Interpolation{Expr: expr.(Expression), GraphNode: NewNode(pos(c.pos))}
+  if string(mod.([]byte)) == "!" {
+    intElem.Unescaped = true
+  }
+  return intElem, nil
+}
+
+Expression <- ExpressionBinOp
+
+ExpressionBinOp <- first:ExpressionCmpOp rest:( _ CmpOp _ ExpressionBinOp )* {
+  return binary(first, rest, c.pos)
+}
+
+ExpressionCmpOp <- first:ExpressionAddOp rest:( _ CmpOp _ ExpressionCmpOp )* {
+  return binary(first, rest, c.pos)
+}
+
+ExpressionAddOp <- first:ExpressionMulOp rest:( _ AddOp _ ExpressionAddOp )* {
+  return binary(first, rest, c.pos)
+}
+
+ExpressionMulOp <- first:ExpressionUnaryOp rest:( _ MulOp _ ExpressionMulOp )* {
+  return binary(first, rest, c.pos)
+}
+
+ExpressionUnaryOp <- op:UnaryOp _ ex:ExpressionFactor {
+  return &UnaryExpression{X: ex.(Expression), Op: op.(string), GraphNode: NewNode(pos(c.pos))}, nil
+} / ExpressionFactor
+
+ExpressionFactor <- '(' e:Expression ')' {
+  return e, nil
+} / StringExpression / NumberExpression / BooleanExpression / NilExpression / MemberExpression
+
+StringExpression <- s:String {
+  return &StringExpression{Value: s.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+NumberExpression <- '-'? Integer dec:( '.' DecimalDigit+ )? ex:Exponent? {
+  if dec != nil || ex != nil {
+    val, err := strconv.ParseFloat(string(c.text), 64);
+    return &FloatExpression{Value: val, GraphNode: NewNode(pos(c.pos))}, err
+  } else {
+    val, err := strconv.ParseInt(string(c.text), 10, 64)
+    return &IntegerExpression{Value: val, GraphNode: NewNode(pos(c.pos))}, err
+  }
+}
+
+NilExpression <- Null {
+  return &NilExpression{GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+BooleanExpression <- b:Bool {
+  return &BooleanExpression{Value: b.(bool), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+MemberExpression <- field:Field member:(('.' Identifier) / (_ CallArguments))* {
+  memberSlice := toSlice(member)
+  cur := field.(Expression)
+
+  for _, m := range memberSlice {
+    mSlice := toSlice(m)
+
+    if mSlice[0] != nil && string(mSlice[0].([]byte)) == "." {
+      cur = &MemberExpression{X: cur, Name: mSlice[1].(string), GraphNode: NewNode(pos(c.pos))}
+    } else {
+      cur = &FunctionCallExpression{X: cur, Arguments: mSlice[1].([]Expression), GraphNode: NewNode(pos(c.pos))}
+    }
+  }
+
+  return cur, nil
+}
+
+Field <- id:Identifier {
+  return &FieldExpression{Name: string(c.text), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+UnaryOp <- ( '+' / '-' / '!' ) {
+  return string(c.text), nil
+}
+
+AddOp <- ( '+' / '-' ) {
+  return string(c.text), nil
+}
+
+MulOp <- ( '*' / '/' / '%' ) {
+  return string(c.text), nil
+}
+
+CmpOp <- ( "==" / "!=" / "<" / ">" / "<=" / ">=" ) {
+  return string(c.text), nil
+}
+
+BinOp <- ( "&&" / "||" ) {
+  return string(c.text), nil
+}
+
+String "string" <- Quote ( !EscapedChar . / '\\' EscapeSequence )* Quote {
+  return strconv.Unquote(string(c.text))
+}
+
+Quote "quote" <- '"'
+
+EscapedChar <- [\x00-\x1f"\\]
+EscapeSequence <- SingleCharEscape / UnicodeEscape
+SingleCharEscape <- ["\\/bfnrt]
+UnicodeEscape <- 'u' HexDigit HexDigit HexDigit HexDigit
+
+Integer <- '0' / NonZeroDecimalDigit DecimalDigit*
+Exponent <- 'e'i [+-]? DecimalDigit+
+DecimalDigit <- [0-9]
+NonZeroDecimalDigit <- [1-9]
+HexDigit <- [0-9a-f]i
+Bool <- "true" { return true, nil } / "false" { return false, nil }
+Null <- ("null" / "nil") { return nil, nil }
+
+Variable <- ident:Identifier {
+  return &Variable{Name: ident.(string), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+Identifier <- [a-zA-Z_] [a-zA-Z0-9_]* {
+  return string(c.text), nil
+}
+
+EmptyLine <- _ [\n] {
+  return nil, nil
+}
+
+_ "whitespace" <- [ \t]* { return nil, nil }
+__ "whitespace" <- [ \t]  { return nil, nil }
+NL <- [\n] / &EOF
+EOF <- !.
