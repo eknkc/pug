@@ -22,38 +22,19 @@ type Context interface {
 	beginLine()
 	endLine()
 
-	pushScope()
-	popScope()
-
-	variable(string) *Variable
-	setVariable(*Variable) *Variable
-
-	include(name string) (string, error)
 	define(string, ...func() error) (*Define, error)
-	block(string) *Define
 
-	ParseFile(name string) (Node, error)
+	ParseFile(name string) (*Root, error)
 	CompileFile(name string) (string, error)
 
 	String() string
 	WriteTo(io.Writer) (int64, error)
 }
 
-type scope struct {
-	Variables map[string]*Variable
-	Parent    *scope
-}
-
-func newScope() *scope {
-	return &scope{
-		Variables: make(map[string]*Variable),
-	}
-}
-
 type context struct {
-	body         *bytes.Buffer
+	body *bytes.Buffer
+
 	Dir          Dir
-	Scope        *scope
 	indentLevel  int
 	IndentString string
 	path         string
@@ -69,7 +50,6 @@ func (bw *context) clone() *context {
 		Dir:          bw.Dir,
 		IndentString: bw.IndentString,
 		parent:       bw,
-		Scope:        newScope(),
 	}
 }
 
@@ -80,42 +60,20 @@ func (bw *context) CompileFile(name string) (string, error) {
 		return "", err
 	}
 
-	tplstring := ""
-
-	if extend, err := bw.checkExtend(root); err != nil {
-		return "", err
-	} else if extend != nil {
-		extend.Handled = true
-		extend.File = filepath.Join(filepath.Dir(bw.path), extend.File)
-		bw.extend = extend
-
-		clone := bw.clone()
-		if tpl, err := clone.CompileFile(extend.File); err != nil {
-			return "", err
-		} else {
-			tplstring += tpl
-			bw.definitions = clone.definitions
-		}
-	}
-
 	if err = root.Compile(bw, nil); err != nil {
 		return "", err
 	}
 
-	if bw.parent == nil {
-		for _, def := range bw.definitions {
-			if err := def.Compile(bw, root); err != nil {
-				return "", err
-			}
+	for _, def := range bw.definitions {
+		if err := def.Compile(bw, root); err != nil {
+			return "", err
 		}
 	}
 
-	tplstring += bw.String()
-
-	return tplstring, nil
+	return bw.String(), nil
 }
 
-func (bw *context) ParseFile(name string) (Node, error) {
+func (bw *context) ParseFile(name string) (*Root, error) {
 	reader, err := bw.Dir.Open(name)
 
 	if err != nil {
@@ -142,17 +100,30 @@ func (bw *context) ParseFile(name string) (Node, error) {
 		return nil, err
 	}
 
-	bw.path = name
+	root := ret.(*Root)
+	root.Filename = name
 
-	return ret.(Node), nil
-}
-
-func (bw *context) rootContext() *context {
-	for bw.parent != nil {
-		bw = bw.parent
+	if bw.path == "" {
+		bw.path = filepath.Clean(name)
 	}
 
-	return bw
+	if extend, err := bw.checkExtend(root); err != nil {
+		return root, err
+	} else if extend != nil {
+		extend.Handled = true
+		parentRoot, err := bw.ParseFile(filepath.Join(filepath.Dir(root.Filename), extend.File))
+
+		if err != nil {
+			return root, err
+		}
+
+		parentRoot.List.Nodes = append(parentRoot.List.Nodes, root)
+		root.Extends = parentRoot
+
+		root = parentRoot
+	}
+
+	return root, nil
 }
 
 func (bw *context) checkExtend(root Node) (*Extend, error) {
@@ -164,7 +135,7 @@ func (bw *context) checkExtend(root Node) (*Extend, error) {
 
 	var ex *Extend
 
-	for _, node := range rn.Nodes {
+	for _, node := range rn.List.Nodes {
 		if extend, ok := node.(*Extend); ok {
 			ex = extend
 			break
@@ -175,7 +146,7 @@ func (bw *context) checkExtend(root Node) (*Extend, error) {
 		return nil, nil
 	}
 
-	for _, node := range rn.Nodes {
+	for _, node := range rn.List.Nodes {
 		switch node.(type) {
 		case *Extend, *Mixin, *Block, *Comment:
 			continue
@@ -215,68 +186,6 @@ func (bw *context) WriteTo(w io.Writer) (int64, error) {
 	return bw.body.WriteTo(w)
 }
 
-func (bw *context) pushScope() {
-	ns := newScope()
-	ns.Parent = bw.Scope
-	bw.Scope = ns
-}
-
-func (bw *context) popScope() {
-	if bw.Scope.Parent != nil {
-		bw.Scope = bw.Scope.Parent
-	}
-}
-
-func (bw *context) variable(name string) *Variable {
-	s := bw.Scope
-
-	for s != nil {
-		if v, ok := s.Variables[name]; ok {
-			return v
-		}
-
-		s = s.Parent
-	}
-
-	return nil
-}
-
-func (bw *context) block(name string) *Define {
-	return nil
-}
-
-func (bw *context) setVariable(v *Variable) *Variable {
-	if bw.variable(v.Name) == nil {
-		bw.Scope.Variables[v.Name] = v
-	}
-
-	return v
-}
-
-func (bw *context) include(name string) (string, error) {
-	root := bw.rootContext()
-	name = filepath.Join(filepath.Dir(bw.path), name)
-
-	if _, ok := root.definitions[name]; ok {
-		return name, nil
-	}
-
-	clone := bw.clone()
-	clone.indent()
-
-	if tpl, err := clone.CompileFile(name); err != nil {
-		return "", err
-	} else {
-		if root.definitions == nil {
-			root.definitions = make(map[string]*Define)
-		}
-
-		root.definitions[name] = &Define{Name: name, Tpl: tpl}
-
-		return name, nil
-	}
-}
-
 func (bw *context) define(name string, definer ...func() error) (*Define, error) {
 	if len(definer) == 0 {
 		return bw.definitions[name], nil
@@ -284,17 +193,16 @@ func (bw *context) define(name string, definer ...func() error) (*Define, error)
 
 	definerFunc := definer[0]
 
-	body, indentLevel, scope := bw.body, bw.indentLevel, bw.Scope
+	body, indentLevel := bw.body, bw.indentLevel
 
 	bw.body = &bytes.Buffer{}
-	bw.Scope = newScope()
 	bw.indentLevel = 1
 
 	defBody := bw.body
 
 	err := definerFunc()
 
-	bw.body, bw.indentLevel, bw.Scope = body, indentLevel, scope
+	bw.body, bw.indentLevel = body, indentLevel
 
 	if err != nil {
 		return nil, err
@@ -325,7 +233,6 @@ func NewContext(dir Dir, indentString string) Context {
 	return &context{
 		body:         &bytes.Buffer{},
 		Dir:          dir,
-		Scope:        newScope(),
 		IndentString: indentString,
 	}
 }

@@ -1,11 +1,16 @@
 package compiler
 
-import "fmt"
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 type Node interface {
 	Compile(w Context, parent Node) error
+
+	variable(v *Variable, lookup ...bool) *Variable
 	graphNode() *GraphNode
+	root() *Root
 }
 
 type Expression interface {
@@ -22,10 +27,51 @@ type Position struct {
 type GraphNode struct {
 	Position
 	Parent Node
+	Scope  *Scope
 }
 
 func (node *GraphNode) graphNode() *GraphNode {
 	return node
+}
+
+func (node *GraphNode) root() *Root {
+	if root, ok := node.Parent.(*Root); ok {
+		return root
+	}
+
+	return node.Parent.root()
+}
+
+func (node *GraphNode) variable(v *Variable, lookup ...bool) *Variable {
+	n := node
+
+	for n != nil {
+		if n.Scope != nil {
+			if variable, ok := n.Scope.Variables[v.Name]; ok {
+				return variable
+			}
+		}
+
+		if n.Parent != nil {
+			n = n.Parent.graphNode()
+		} else {
+			n = nil
+		}
+	}
+
+	if len(lookup) > 0 && lookup[0] {
+		return nil
+	}
+
+	if node.Scope == nil {
+		node.Scope = &Scope{
+			Variables: make(map[string]*Variable),
+		}
+	}
+
+	node.Scope.Variables[v.Name] = v
+
+	return v
 }
 
 func NewNode(pos Position) *GraphNode {
@@ -41,7 +87,9 @@ type Scope struct {
 }
 
 type Root struct {
-	*List
+	*GraphNode
+	Extends  *Root
+	List     *List
 	Filename string
 }
 
@@ -182,8 +230,7 @@ func (s MemberExpression) RawValue(w Context, parent Node) *string {
 
 type FieldExpression struct {
 	*GraphNode
-	Variable bool
-	Name     string
+	Variable *Variable
 }
 
 func (s FieldExpression) RawValue(w Context, parent Node) *string {
@@ -295,9 +342,10 @@ type DocType struct {
 	Value string
 }
 
+// Remove
 type Define struct {
 	*GraphNode
-	Name    string
-	Tpl     string
-	Written bool
+	Name   string
+	Tpl    string
+	Hidden bool
 }

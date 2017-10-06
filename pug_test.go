@@ -191,7 +191,7 @@ block deneme
 	if err != nil {
 		t.Fatal(err.Error())
 	} else {
-		expect(res, `<p>test2</p>`, t)
+		expect(res, `<p>Test</p>`, t)
 	}
 }
 
@@ -205,7 +205,7 @@ p a
 	if err != nil {
 		t.Fatal(err.Error())
 	} else {
-		expect(res, "<style>body{ color: red }\n</style><p>a</p>", t)
+		expect(res, "<style>  body{ color: red }\n</style><p>a</p>", t)
 	}
 }
 
@@ -222,7 +222,7 @@ func Test_Import(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expect(string(buf.Bytes()), "<p>Main</p><p>import1</p><p>import2</p><p><p>import2</p></p>", t)
+	expect(string(buf.Bytes()), "<p>Main<p>import1</p><p>import2</p></p><p>import2</p>", t)
 }
 
 func Test_Extend(t *testing.T) {
@@ -238,7 +238,7 @@ func Test_Extend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expect(string(buf.Bytes()), "<p>Main</p><p>import1</p><p>import2</p><p><p>import2</p></p>", t)
+	expect(string(buf.Bytes()), "<body><p>extend-test1</p><p>mid-test2</p><p>base-test3</p><p>extend-test3-append</p></body>", t)
 }
 
 func Benchmark_Parse(b *testing.B) {

@@ -4,23 +4,30 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"path/filepath"
 	"strconv"
 )
 
 func (n *Root) Compile(w Context, parent Node) (err error) {
-	return n.List.Compile(w, parent)
+	if err := n.GraphNode.Compile(w, parent); err != nil {
+		return err
+	}
+
+	if err := n.List.Compile(w, n); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (n *Define) Compile(w Context, parent Node) (err error) {
-	if n.Written {
+	if n.Hidden {
 		return nil
 	}
 
 	w.writeLinef("{{ define %s }}", strconv.Quote(n.Name))
 	w.write(n.Tpl)
 	w.writeLine("{{ end }}")
-
-	n.Written = true
 
 	return
 }
@@ -30,15 +37,11 @@ func (n *List) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.pushScope()
-
 	for _, node := range n.Nodes {
 		if err := node.Compile(w, n); err != nil {
 			return err
 		}
 	}
-
-	w.popScope()
 
 	return nil
 }
@@ -261,11 +264,11 @@ func (n *Each) Compile(w Context, parent Node) (err error) {
 	w.write("{{ range ")
 
 	if n.IndexVariable != nil {
-		n.IndexVariable = w.setVariable(n.IndexVariable)
+		n.IndexVariable = n.Parent.variable(n.IndexVariable)
 		w.writef("$%s, ", n.IndexVariable.Name)
 	}
 
-	n.ElementVariable = w.setVariable(n.ElementVariable)
+	n.ElementVariable = n.Parent.variable(n.ElementVariable)
 	w.writef("$%s := ", n.ElementVariable.Name)
 
 	if err := n.Container.Compile(w, n); err != nil {
@@ -295,7 +298,7 @@ func (n *Mixin) Compile(w Context, parent Node) (err error) {
 		for _, arg := range n.Arguments {
 			w.beginLine()
 
-			arg.Name = w.setVariable(arg.Name)
+			arg.Name = n.Parent.variable(arg.Name)
 			w.writef("{{ $%s := __pug_pop . ", arg.Name.Name)
 
 			if arg.Default != nil {
@@ -373,15 +376,13 @@ func (n *FieldExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.write("__pug_push ")
-
-	if w.variable(n.Name) != nil {
-		w.write("$")
+	if n.variable(n.Variable, true) != nil {
+		w.write("__pug_push $")
 	} else {
-		w.write(".")
+		w.write("__pug_push .")
 	}
 
-	w.write(n.Name)
+	w.write(n.Variable.Name)
 
 	return
 }
@@ -536,7 +537,7 @@ func (n *Assignment) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	n.Variable = w.setVariable(n.Variable)
+	n.Variable = n.Parent.variable(n.Variable)
 
 	if rawExpr := n.Expression.RawValue(w, n); rawExpr != nil {
 		w.writeLinef("{{ $%s := %s }}", n.Variable.Name, *rawExpr)
@@ -577,10 +578,28 @@ func (n *Import) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	if name, err := w.include(n.File); err != nil {
+	root := n.root()
+	file := filepath.Join(filepath.Dir(root.Filename), n.File)
+
+	if def, err := w.define(file); err != nil {
+		return err
+	} else if def != nil {
+		w.writeLinef("{{ template %s . }}", strconv.Quote(def.Name))
+		return nil
+	}
+
+	if ast, err := w.ParseFile(file); err != nil {
 		return err
 	} else {
-		w.writeLinef("{{ template %s . }}", strconv.Quote(name))
+		_, err = w.define(file, func() error {
+			return ast.Compile(w, root)
+		})
+
+		if err != nil {
+			return err
+		}
+
+		w.writeLinef("{{ template %s . }}", strconv.Quote(file))
 	}
 
 	return
@@ -603,63 +622,60 @@ func (n *Block) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	// parentBlock, _ := w.define(n.Name)
+	root := n.root()
 
-	// if n.Modifier != "" && n.Block != nil && parentBlock != nil {
-	// 	_, err = w.define(fmt.Sprintf("%s-%s", parentBlock.Name, n.Modifier), func() error {
-	// 		return n.Block.Compile(w, n)
-	// 	})
-
-	// 	return err
-	// }
-
-	if _, err := w.define(fmt.Sprintf("%s-prepend", n.Name), func() error { return nil }); err != nil {
-		return err
-	}
-
-	if _, err := w.define(fmt.Sprintf("%s-append", n.Name), func() error { return nil }); err != nil {
-		return err
-	}
-
-	if _, err := w.define(n.Name, func() error { return nil }); err != nil {
+	renderBlock := func() error {
 		if n.Block != nil {
-			w.indent()
 			if err := n.Block.Compile(w, n); err != nil {
 				return err
 			}
-			w.outdent()
 		}
+
+		return nil
 	}
 
-	w.writeLinef(`{{ template %s . }}`, strconv.Quote(fmt.Sprintf("%s-prepend", n.Name)))
-	w.writeLinef(`{{ template %s . }}`, strconv.Quote(n.Name))
-	w.writeLinef(`{{ template %s . }}`, strconv.Quote(fmt.Sprintf("%s-append", n.Name)))
+	if root.Extends == nil {
+		_, err := w.define(fmt.Sprintf("%s", n.Name), func() error {
+			return renderBlock()
+		})
 
-	// w.writeLinef(`{{ define %s }}{{ end }}`, strconv.Quote(fmt.Sprintf("%s_prepend", n.GlobalName)))
-	// w.writeLinef(`{{ define %s }}{{ end }}`, strconv.Quote(fmt.Sprintf("%s_append", n.GlobalName)))
-	// w.writeLinef(`{{ define %s }}`, strconv.Quote(n.GlobalName))
-	// if n.Modifier == "" && n.Block != nil {
-	// 	w.indent()
-	// 	if err := n.Block.Compile(w, n); err != nil {
-	// 		return err
-	// 	}
-	// 	w.outdent()
-	// }
-	// w.writeLine(`{{ end }}`)
+		if err != nil {
+			return err
+		}
 
-	// if pb != nil {
-	// 	w.writeLinef(`{{ define %s }}`, strconv.Quote(fmt.Sprintf("%s", pb.GlobalName)))
-	// 	w.indent()
-	// }
+		w.writeLinef("{{ template %s . }}", strconv.Quote(n.Name))
+	} else {
+		if def, err := w.define(fmt.Sprintf("%s", n.Name)); err != nil {
+			return err
+		} else if def != nil {
+			_, err := w.define(fmt.Sprintf("%s", n.Name), func() error {
+				if n.Modifier == "prepend" {
+					if err := renderBlock(); err != nil {
+						return err
+					}
 
-	// w.writeLinef(`{{ template %s . }}`, strconv.Quote(fmt.Sprintf("%s_prepend", n.GlobalName)))
-	// w.writeLinef(`{{ template %s . }}`, strconv.Quote(n.GlobalName))
-	// w.writeLinef(`{{ template %s . }}`, strconv.Quote(fmt.Sprintf("%s_append", n.GlobalName)))
+					w.write(def.Tpl)
+					return nil
+				}
 
-	// if pb != nil {
-	// 	w.outdent()
-	// 	w.writeLine(`{{ end }}`)
-	// }
+				if n.Modifier == "append" {
+					w.write(def.Tpl)
+
+					if err := renderBlock(); err != nil {
+						return err
+					}
+
+					return nil
+				}
+
+				return renderBlock()
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }

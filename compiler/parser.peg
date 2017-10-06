@@ -35,7 +35,7 @@
 }
 
 Input <- l:List EOF {
-  return &Root{List: l.(*List)}, nil
+  return &Root{List: l.(*List), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
 List <- node:ListNode list:List {
@@ -433,8 +433,8 @@ MemberExpression <- field:Field member:(('.' Identifier) / (_ CallArguments))* {
   return cur, nil
 }
 
-Field <- id:Identifier {
-  return &FieldExpression{Name: string(c.text), GraphNode: NewNode(pos(c.pos))}, nil
+Field <- variable:Variable {
+  return &FieldExpression{Variable: variable.(*Variable), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
 UnaryOp <- ( '+' / '-' / '!' ) {
