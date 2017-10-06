@@ -249,6 +249,19 @@ func Field(name string, values ...interface{}) (*stack, error) {
 				return stack, fmt.Errorf("invalid field access: %s", name)
 			}
 		}
+	case reflect.Map:
+		if isNil {
+			return stack, fmt.Errorf("nil pointer evaluating %s.%s", xVal.Type(), name)
+		}
+
+		nameVal := reflect.ValueOf(name)
+		if nameVal.Type().AssignableTo(xVal.Type().Key()) {
+			result := xVal.MapIndex(nameVal)
+			if !result.IsValid() {
+				result = reflect.Zero(xVal.Type().Elem())
+			}
+			stack.push(result.Interface())
+		}
 	default:
 		return stack, fmt.Errorf("can't evaluate field %s in type %s", name, xVal.Type())
 	}

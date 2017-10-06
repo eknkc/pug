@@ -14,3 +14,6 @@ html(lang="en")
       p.
         Pug is a terse and simple templating language with a
         strong focus on performance and powerful features.
+
+    each item, i in List
+      p(class=i % 2 == 0 ? "even" : "odd") #{item}

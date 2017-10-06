@@ -121,6 +121,46 @@ func Test_TerneryExpression(t *testing.T) {
 	}
 }
 
+func Test_TerneryClass(t *testing.T) {
+	res, err := run(`
+each item, i in Items
+	p(class=i % 2 == 0 ? "even" : "odd") #{item}`, testStruct{Items: []string{"test1", "test2"}})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p class="even">test1</p><p class="odd">test2</p>`, t)
+	}
+}
+
+func Test_NilClass(t *testing.T) {
+	res, err := run(`p(class=nil)`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p class=""></p>`, t)
+	}
+}
+
+func Test_MapAccess(t *testing.T) {
+	res, err := run(`p #{a.b().c}`, map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": func() interface{} {
+				return map[string]interface{}{
+					"c": "d",
+				}
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p>d</p>`, t)
+	}
+}
+
 func Test_Dollar_In_TagAttributes(t *testing.T) {
 	res, err := run(`input(placeholder="$ per "+kwh)`, map[string]interface{}{
 		"kwh": "kWh",

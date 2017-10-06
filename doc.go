@@ -78,7 +78,7 @@ executed with following JSON data:
         "Name": "Ekin",
         "LastName": "Koc",
         "Repositories": [
-            "amber",
+            "pug",
             "dateformat"
         ],
         "Avatar": "/images/ekin.jpg",
@@ -103,7 +103,7 @@ would print
 
 Expressions
 
-Amber can expand basic expressions. For example, it is possible to concatenate strings with + operator:
+Pug can expand basic expressions. For example, it is possible to concatenate strings with + operator:
 
     p Welcome #{Name + " " + LastName}
 
@@ -150,25 +150,25 @@ It is possible to iterate over arrays and maps using `each`:
 
 would print
 
-    p amber
+    p pug
     p dateformat
 
 It is also possible to iterate over values and indexes at the same time
 
     each i, repo in Repositories
-        p(class=)
+        p(class=i % 2 == 0 ? "even" : "odd") #{repo}
 
 Includes
 
 A template can include other templates using `include`:
 
-    a.amber
+    a.pug
         p this is template a
 
-    b.amber
+    b.pug
         p this is template b
 
-    c.amber
+    c.pug
         div
             include a
             include b
@@ -184,12 +184,12 @@ Inheritance
 A template can inherit other templates. In order to inherit another template, an `extends` keyword should be used.
 Parent template can define several named blocks and child template can modify the blocks.
 
-    master.amber
-        !!! 5
+    master.pug
+        doctype html
         html
             head
                 block meta
-                    meta[name="description"][content="This is a great website"]
+                    meta(name="description" content="This is a great website")
 
                 title
                     block title
@@ -197,7 +197,7 @@ Parent template can define several named blocks and child template can modify th
             body
                 block content
 
-    subpage.amber
+    subpage.pug
         extends master
 
         block title
@@ -206,7 +206,7 @@ Parent template can define several named blocks and child template can modify th
         block append meta
             // This will be added after the description meta tag. It is also possible
             // to prepend something to an existing block
-            meta[name="keywords"][content="foo bar"]
+            meta(name="keywords" content="foo bar")
 
         block content
             div#main
