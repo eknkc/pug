@@ -111,6 +111,16 @@ func Test_BooleanExpression(t *testing.T) {
 	}
 }
 
+func Test_Interpolation(t *testing.T) {
+	res, err := run(`| #{Key} !{Key}`, testStruct{Key: "<hr />"})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `&lt;hr /&gt; <hr />`, t)
+	}
+}
+
 func Test_TerneryExpression(t *testing.T) {
 	res, err := run(`| #{ B > A ? A > B ? "x" : "y" : "z" }`, map[string]int{"A": 2, "B": 3})
 

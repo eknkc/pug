@@ -487,7 +487,7 @@ String "string" <- Quote ( !EscapedChar . / '\\' EscapeSequence )* Quote {
   return strconv.Unquote(string(c.text))
 }
 
-Quote "quote" <- '"'
+Quote "quote" <- `"`
 
 EscapedChar <- [\x00-\x1f"\\]
 EscapeSequence <- SingleCharEscape / UnicodeEscape

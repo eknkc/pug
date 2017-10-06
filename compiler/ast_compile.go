@@ -195,7 +195,7 @@ func (n *Attribute) Compile(w Context, parent Node) (err error) {
 		if err := n.Value.Compile(w, n); err != nil {
 			return err
 		}
-		w.write(` | __pug_pop}}"`)
+		w.write(`}}"`)
 	}
 
 	return
@@ -208,14 +208,19 @@ func (n Interpolation) Compile(w Context, parent Node) (err error) {
 
 	rawValue := n.Expr.RawValue(w, n)
 
-	if rawValue != nil {
+	if rawValue != nil && !n.Unescaped {
 		w.write(html.EscapeString(*rawValue))
 	} else {
 		w.write("{{ ")
+
+		if n.Unescaped {
+			w.write("__pug_unescape ")
+		}
+
 		if err := n.Expr.Compile(w, n); err != nil {
 			return err
 		}
-		w.write(" | __pug_pop }}")
+		w.write(" }}")
 	}
 
 	return
@@ -231,7 +236,7 @@ func (n *If) Compile(w Context, parent Node) (err error) {
 	if err := n.Condition.Compile(w, n); err != nil {
 		return err
 	}
-	w.write(" | __pug_pop }}")
+	w.write(" }}")
 	w.endLine()
 
 	w.indent()
@@ -275,7 +280,7 @@ func (n *Each) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.write(" | __pug_pop }}")
+	w.write(" }}")
 	w.endLine()
 
 	w.indent()
@@ -295,32 +300,12 @@ func (n *Mixin) Compile(w Context, parent Node) (err error) {
 	}
 
 	_, err = w.define(fmt.Sprintf("mixin-%s", n.Name), func() error {
-		for _, arg := range n.Arguments {
-			w.beginLine()
-
+		for i, arg := range n.Arguments {
 			arg.Name = n.Parent.variable(arg.Name)
-			w.writef("{{ $%s := __pug_pop . ", arg.Name.Name)
-
-			if arg.Default != nil {
-				raw := arg.Default.RawValue(w, n)
-
-				if raw != nil {
-					w.write(*raw)
-					w.write(" ")
-				} else {
-					w.write("(")
-					if err := arg.Default.Compile(w, n); err != nil {
-						return err
-					}
-					w.write(" | __pug_pop) ")
-				}
-			}
-
-			w.write("}}")
-			w.endLine()
+			w.writeLinef("{{ $%s := index . %d }}", arg.Name.Name, i+1)
 		}
 
-		w.writeLine(`{{ with (__pug_binaryop "||" true .) | __pug_pop }}`)
+		w.writeLine(`{{ with index . 0 }}`)
 		if n.Block != nil {
 			w.indent()
 			if err := n.Block.Compile(w, n); err != nil {
@@ -354,12 +339,10 @@ func (n *MixinCall) Compile(w Context, parent Node) (err error) {
 	}
 
 	w.beginLine()
-	w.writef("{{ template %s (__pug_push . ", strconv.Quote(mixin.Name))
+	w.writef("{{ template %s (__pug_slice .", strconv.Quote(mixin.Name))
 
-	for i := len(n.Arguments) - 1; i >= 0; i-- {
-		arg := n.Arguments[i]
-
-		w.write(" | ")
+	for _, arg := range n.Arguments {
+		w.write(" ")
 		if err := arg.Compile(w, n); err != nil {
 			return err
 		}
@@ -377,9 +360,9 @@ func (n *FieldExpression) Compile(w Context, parent Node) (err error) {
 	}
 
 	if n.variable(n.Variable, true) != nil {
-		w.write("__pug_push $")
+		w.write("$")
 	} else {
-		w.write("__pug_push .")
+		w.write(".")
 	}
 
 	w.write(n.Variable.Name)
@@ -392,19 +375,29 @@ func (n *FunctionCallExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	if err := n.X.Compile(w, n); err != nil {
-		return err
+	w.write("(")
+
+	if field, ok := n.X.(*FieldExpression); ok && n.variable(field.Variable, true) == nil {
+		w.write(field.Variable.Name)
+	} else {
+		w.write("call (")
+
+		if err := n.X.Compile(w, n); err != nil {
+			return err
+		}
+
+		w.write(")")
 	}
 
 	for _, a := range n.Arguments {
-		w.write(" | ")
+		w.write(" ")
 
 		if err := a.Compile(w, n); err != nil {
 			return err
 		}
 	}
 
-	w.writef(" | __pug_call %d", len(n.Arguments))
+	w.writef(")")
 
 	return
 }
@@ -414,26 +407,12 @@ func (n *MemberExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	var cur Expression = n
-
-	for {
-		if member, ok := cur.(*MemberExpression); ok {
-			cur = member.X
-		} else {
-			if err := n.X.Compile(w, n); err != nil {
-				return err
-			}
-
-			if _, ok := cur.(*FieldExpression); ok {
-				w.write(".")
-				w.write(n.Name)
-				break
-			} else {
-				w.writef(" | __pug_field %s", strconv.Quote(n.Name))
-				break
-			}
-		}
+	if err := n.X.Compile(w, n); err != nil {
+		return err
 	}
+
+	w.write(".")
+	w.write(n.Name)
 
 	return
 }
@@ -443,7 +422,7 @@ func (n *StringExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.writef("__pug_push %s", strconv.Quote(n.Value))
+	w.writef("%s", strconv.Quote(n.Value))
 	return
 }
 
@@ -452,7 +431,7 @@ func (n *FloatExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.writef("__pug_push %f", n.Value)
+	w.writef("%f", n.Value)
 	return
 }
 
@@ -461,7 +440,7 @@ func (n *IntegerExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.writef("__pug_push %d", n.Value)
+	w.writef("%d", n.Value)
 	return
 }
 
@@ -471,9 +450,9 @@ func (n *BooleanExpression) Compile(w Context, parent Node) (err error) {
 	}
 
 	if n.Value {
-		w.write("__pug_push true")
+		w.write("true")
 	} else {
-		w.write("__pug_push false")
+		w.write("false")
 	}
 
 	return
@@ -484,7 +463,7 @@ func (n *NilExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	w.write("__pug_push nil")
+	w.write("(__pug_nil)")
 	return
 }
 
@@ -493,11 +472,14 @@ func (n *UnaryExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
+	w.writef(`(__pug_unaryop %s `, strconv.Quote(n.Op))
+
 	if err := n.X.Compile(w, parent); err != nil {
 		return err
 	}
 
-	w.writef(` | __pug_unaryop %s`, strconv.Quote(n.Op))
+	w.write(`)`)
+
 	return
 }
 
@@ -506,28 +488,19 @@ func (n *BinaryExpression) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	rawX := n.X.RawValue(w, n)
-	rawY := n.Y.RawValue(w, n)
+	w.writef(`(__pug_binaryop %s `, strconv.Quote(n.Op))
 
-	if rawX != nil && rawY != nil {
-		w.writef(`__pug_binaryop %s %s %s`, strconv.Quote(n.Op), *rawX, *rawY)
-	} else {
-		if err := n.X.Compile(w, n); err != nil {
-			return err
-		}
-
-		if rawY != nil {
-			w.writef(` | __pug_binaryop %s %s`, strconv.Quote(n.Op), *rawY)
-		} else {
-			w.write(" | ")
-
-			if err := n.Y.Compile(w, n); err != nil {
-				return err
-			}
-
-			w.writef(` | __pug_binaryop %s`, strconv.Quote(n.Op))
-		}
+	if err := n.X.Compile(w, n); err != nil {
+		return err
 	}
+
+	w.write(" ")
+
+	if err := n.Y.Compile(w, n); err != nil {
+		return err
+	}
+
+	w.write(")")
 
 	return
 }
@@ -549,7 +522,7 @@ func (n *Assignment) Compile(w Context, parent Node) (err error) {
 	if err := n.Expression.Compile(w, n); err != nil {
 		return err
 	}
-	w.write(" | __pug_pop }}")
+	w.write(" }}")
 	w.endLine()
 
 	return
