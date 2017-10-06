@@ -11,6 +11,8 @@
 Package pug.go is an elegant templating engine for Go Programming Language.
 It is a port of Pug template engine, previously known as Jade.
 
+**This is highly experimental. Do not use.**
+
 ### Tags
 A tag is simply a word:
 
