@@ -117,12 +117,11 @@ Expressions can be used within attributes
 
 Variables
 
-It is possible to define dynamic variables within templates,
-all variables must start with a $ character and can be assigned as in the following example:
+It is possible to define dynamic variables within templates
 
     div
-        $fullname = Name + " " + LastName
-        p Welcome #{$fullname}
+        fullname = Name + " " + LastName
+        p Welcome #{fullname}
 
 Conditions
 
@@ -146,8 +145,8 @@ Iterations
 
 It is possible to iterate over arrays and maps using `each`:
 
-    each $repo in Repositories
-        p #{$repo}
+    each repo in Repositories
+        p #{repo}
 
 would print
 
@@ -156,7 +155,7 @@ would print
 
 It is also possible to iterate over values and indexes at the same time
 
-    each $repo, $i in Repositories
+    each i, repo in Repositories
         p(class=)
 
 Includes
@@ -216,7 +215,7 @@ Parent template can define several named blocks and child template can modify th
 License
 (The MIT License)
 
-Copyright (c) 2012 Ekin Koc <ekin@eknkc.com>
+Copyright (c) 2017 Ekin Koc <ekin@eknkc.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

@@ -25,6 +25,7 @@ func newContext(dir compiler.Dir, options ...Options) compiler.Context {
 	}
 
 	indentString := ""
+
 	if opt.PrettyPrint {
 		indentString = "  "
 	}

@@ -116,18 +116,6 @@ type Interpolation struct {
 	Unescaped bool
 }
 
-type ExpressionList struct {
-	*GraphNode
-	Expressions []Expression
-	Seperator   string
-}
-
-func (s ExpressionList) RawValue(w Context, parent Node) *string {
-	s.GraphNode.Compile(w, parent)
-
-	return nil
-}
-
 type StringExpression struct {
 	*GraphNode
 	Value string
@@ -342,7 +330,6 @@ type DocType struct {
 	Value string
 }
 
-// Remove
 type Define struct {
 	*GraphNode
 	Name   string

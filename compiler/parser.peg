@@ -120,6 +120,8 @@ TagHeader <- _ name:TagName attrs:TagAttributes? tl:(__ TextList?)? NL {
 
 TagName <- [_a-zA-Z] [_-:a-zA-Z0-9]* {
   return string(c.text), nil
+} / &TagAttributeClass / &TagAttributeID {
+  return "div", nil
 }
 
 TagAttributes <- head:(TagAttributeClass / TagAttributeID) tail:TagAttributes? {
@@ -158,7 +160,7 @@ TagAttributeClass <- '.' name:ClassName {
   return []*Attribute{&Attribute{Name: "class", Value: &StringExpression{Value: name.(string)}, GraphNode: NewNode(pos(c.pos))}}, nil
 }
 
-TagAttributeID <- '#' name:TagAttributeNameLiteral {
+TagAttributeID <- '#' name:IdName {
   return []*Attribute{&Attribute{Name: "id", Value: &StringExpression{Value: name.(string)}, GraphNode: NewNode(pos(c.pos))}}, nil
 }
 
@@ -177,6 +179,10 @@ TagAttributeName <- '(' tn:TagAttributeNameLiteral ')' {
 }
 
 ClassName <- [_-:a-zA-Z0-9]+ {
+  return string(c.text), nil
+}
+
+IdName <- [_-:a-zA-Z0-9]+ {
   return string(c.text), nil
 }
 
@@ -360,7 +366,7 @@ TextList <- intr:Interpolation tl:TextList {
 Indent <- "\u0001"
 Outdent <- "\u0002"
 
-Interpolation <- mod:('#' / '!') '{' expr:Expression '}' {
+Interpolation <- mod:('#' / '!') '{' _ expr:Expression _ '}' {
   intElem := &Interpolation{Expr: expr.(Expression), GraphNode: NewNode(pos(c.pos))}
   if string(mod.([]byte)) == "!" {
     intElem.Unescaped = true
@@ -368,7 +374,27 @@ Interpolation <- mod:('#' / '!') '{' expr:Expression '}' {
   return intElem, nil
 }
 
-Expression <- ExpressionBinOp
+Expression <- ExpressionTernery
+
+ExpressionTernery <- cnd:ExpressionBinOp rest:(_ '?' _ ExpressionTernery _ ':' _ ExpressionTernery)? {
+  if rest == nil {
+    return cnd, nil
+  }
+
+  restSlice := toSlice(rest)
+
+  return &BinaryExpression{
+    X: &BinaryExpression {
+      X: cnd.(Expression),
+      Y: restSlice[3].(Expression),
+      Op: "&&" ,
+      GraphNode: NewNode(pos(c.pos)),
+    },
+    Y: restSlice[7].(Expression),
+    Op: "||",
+    GraphNode: NewNode(pos(c.pos)),
+  }, nil
+}
 
 ExpressionBinOp <- first:ExpressionCmpOp rest:( _ CmpOp _ ExpressionBinOp )* {
   return binary(first, rest, c.pos)

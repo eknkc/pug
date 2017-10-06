@@ -111,6 +111,16 @@ func Test_BooleanExpression(t *testing.T) {
 	}
 }
 
+func Test_TerneryExpression(t *testing.T) {
+	res, err := run(`| #{ B > A ? A > B ? "x" : "y" : "z" }`, map[string]int{"A": 2, "B": 3})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `y`, t)
+	}
+}
+
 func Test_Dollar_In_TagAttributes(t *testing.T) {
 	res, err := run(`input(placeholder="$ per "+kwh)`, map[string]interface{}{
 		"kwh": "kWh",

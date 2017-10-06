@@ -7,8 +7,6 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 type Context interface {
@@ -32,24 +30,19 @@ type Context interface {
 }
 
 type context struct {
-	body *bytes.Buffer
-
-	Dir          Dir
+	body         *bytes.Buffer
+	dir          Dir
 	indentLevel  int
-	IndentString string
+	indentString string
 	path         string
-	parent       *context
-	blocks       map[string][]*Block
 	definitions  map[string]*Define
-	extend       *Extend
 }
 
 func (bw *context) clone() *context {
 	return &context{
 		body:         &bytes.Buffer{},
-		Dir:          bw.Dir,
-		IndentString: bw.IndentString,
-		parent:       bw,
+		dir:          bw.dir,
+		indentString: bw.indentString,
 	}
 }
 
@@ -74,7 +67,7 @@ func (bw *context) CompileFile(name string) (string, error) {
 }
 
 func (bw *context) ParseFile(name string) (*Root, error) {
-	reader, err := bw.Dir.Open(name)
+	reader, err := bw.dir.Open(name)
 
 	if err != nil {
 		return nil, err
@@ -89,13 +82,13 @@ func (bw *context) ParseFile(name string) (*Root, error) {
 	ret, err := Parse(name, []byte(prep))
 
 	if err != nil {
-		if errList, ok := err.(errList); ok {
-			for _, err := range errList {
-				if parseErr, ok := err.(*parserError); ok {
-					spew.Dump(parseErr)
-				}
-			}
-		}
+		// if errList, ok := err.(errList); ok {
+		// 	for _, err := range errList {
+		// 		if parseErr, ok := err.(*parserError); ok {
+		// 			spew.Dump(parseErr)
+		// 		}
+		// 	}
+		// }
 
 		return nil, err
 	}
@@ -221,10 +214,10 @@ func (bw *context) define(name string, definer ...func() error) (*Define, error)
 
 func (bw *context) indent()    { bw.indentLevel++ }
 func (bw *context) outdent()   { bw.indentLevel-- }
-func (bw *context) beginLine() { bw.write(strings.Repeat(bw.IndentString, bw.indentLevel)) }
+func (bw *context) beginLine() { bw.write(strings.Repeat(bw.indentString, bw.indentLevel)) }
 
 func (bw *context) endLine() {
-	if bw.IndentString != "" {
+	if bw.indentString != "" {
 		bw.write("\n")
 	}
 }
@@ -232,7 +225,7 @@ func (bw *context) endLine() {
 func NewContext(dir Dir, indentString string) Context {
 	return &context{
 		body:         &bytes.Buffer{},
-		Dir:          dir,
-		IndentString: indentString,
+		dir:          dir,
+		indentString: indentString,
 	}
 }

@@ -555,24 +555,6 @@ func (n *Assignment) Compile(w Context, parent Node) (err error) {
 	return
 }
 
-func (n *ExpressionList) Compile(w Context, parent Node) (err error) {
-	if err := n.GraphNode.Compile(w, parent); err != nil {
-		return err
-	}
-
-	for i, ex := range n.Expressions {
-		if i > 0 {
-			w.write(n.Seperator)
-		}
-
-		if err := ex.Compile(w, n); err != nil {
-			return err
-		}
-	}
-
-	return
-}
-
 func (n *Import) Compile(w Context, parent Node) (err error) {
 	if err := n.GraphNode.Compile(w, parent); err != nil {
 		return err
