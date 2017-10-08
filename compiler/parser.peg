@@ -191,7 +191,7 @@ TagAttributeName <- '(' tn:TagAttributeNameLiteral ')' {
   return tn, nil
 } / tn:TagAttributeNameLiteral {
   return tn, nil
-}
+} / String
 
 ClassName <- [_-:a-zA-Z0-9]+ {
   return string(c.text), nil
