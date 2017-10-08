@@ -7,11 +7,12 @@ import (
 )
 
 var FuncMap template.FuncMap = template.FuncMap{
-	"__pug_binaryop": Binary,
-	"__pug_unaryop":  Unary,
-	"__pug_nil":      Nil,
-	"__pug_slice":    Slice,
-	"__pug_unescape": Unescape,
+	"__pug_binaryop":     Binary,
+	"__pug_unaryop":      Unary,
+	"__pug_nil":          Nil,
+	"__pug_slice":        Slice,
+	"__pug_unescape":     Unescape,
+	"__pug_unescapeattr": UnescapeAttr,
 }
 
 func Binary(op string, x, y interface{}) (interface{}, error) {
@@ -164,6 +165,10 @@ func Slice(variables ...interface{}) interface{} {
 
 func Unescape(val string) template.HTML {
 	return template.HTML(val)
+}
+
+func UnescapeAttr(name, val string) template.HTMLAttr {
+	return template.HTMLAttr(fmt.Sprintf(` %s="%s"`, name, val))
 }
 
 func Nil() interface{} {

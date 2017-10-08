@@ -188,14 +188,20 @@ func (n *Attribute) Compile(w Context, parent Node) (err error) {
 
 	strAttribute, ok := n.Value.(*StringExpression)
 
-	if ok {
-		w.writef(`%s="%s"`, n.Name, html.EscapeString(strAttribute.Value))
-	} else {
-		w.writef(`%s="{{`, n.Name)
+	if n.Unescaped {
+		w.writef(`{{ __pug_unescapeattr %s `, strconv.Quote(n.Name))
 		if err := n.Value.Compile(w, n); err != nil {
 			return err
 		}
-		w.write(`}}"`)
+		w.write(` }}`)
+	} else if ok {
+		w.writef(`%s="%s"`, n.Name, html.EscapeString(strAttribute.Value))
+	} else {
+		w.writef(`%s="{{ `, n.Name)
+		if err := n.Value.Compile(w, n); err != nil {
+			return err
+		}
+		w.write(` }}"`)
 	}
 
 	return

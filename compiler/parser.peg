@@ -145,7 +145,7 @@ TagAttributes <- head:(TagAttributeClass / TagAttributeID) tail:TagAttributes? {
   }
 
   return append(head.([]*Attribute), tailElem...), nil
-} / head:('(' _ (TagAttribute (__ TagAttribute)*) _ ')') tail:TagAttributes? {
+} / head:('(' _ (TagAttribute ((__ / (_ ',' _)) TagAttribute)*) _ ')') tail:TagAttributes? {
   tailElem := []*Attribute{}
 
   if tail != nil {
@@ -179,6 +179,8 @@ TagAttributeID <- '#' name:IdName {
 
 TagAttribute <- name:TagAttributeName _ '=' _ value:Expression {
   return []*Attribute{&Attribute{Name: name.(string), Value: value.(Expression), GraphNode: NewNode(pos(c.pos))}}, nil
+} / name:TagAttributeName _ "!=" _ value:Expression {
+  return []*Attribute{&Attribute{Name: name.(string), Value: value.(Expression), Unescaped: true, GraphNode: NewNode(pos(c.pos))}}, nil
 } / name:TagAttributeName {
   return []*Attribute{&Attribute{Name: name.(string), GraphNode: NewNode(pos(c.pos))}}, nil
 }

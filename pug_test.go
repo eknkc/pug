@@ -61,13 +61,14 @@ func Test_MultiClass(t *testing.T) {
 
 func Test_Attribute(t *testing.T) {
 	res, err := run(`
-div(name="Test" @foo.bar="baz").testclass
-	p(style="text-align: center; color: maroon")`, nil)
+div(name="Test" @foo.bar="baz", commasep=1 unescaped!="<foo>").testclass
+	p(style="text-align: center; color: maroon")
+`, nil)
 
 	if err != nil {
 		t.Fatal(err.Error())
 	} else {
-		expect(res, `<div name="Test" @foo.bar="baz" class="testclass"><p style="text-align: center; color: maroon"></p></div>`, t)
+		expect(res, `<div name="Test" @foo.bar="baz" commasep="1"  unescaped="<foo>" class="testclass"><p style="text-align: center; color: maroon"></p></div>`, t)
 	}
 }
 

@@ -267,8 +267,9 @@ type Block struct {
 
 type Attribute struct {
 	*GraphNode
-	Name  string
-	Value Expression
+	Name      string
+	Value     Expression
+	Unescaped bool
 }
 
 type Tag struct {
