@@ -116,6 +116,19 @@ TagHeader <- _ name:TagName attrs:TagAttributes? tl:(__ TextList?)? NL {
     tag.Block = text.(*Text)
   }
   return tag, nil
+} / _ name:TagName attrs:TagAttributes? unescaped:'!'? '=' __ expr:Expression? NL {
+  tag := &Tag{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+  if attrs != nil {
+    tag.Attributes = attrs.([]*Attribute)
+  }
+  if expr != nil {
+    intr := &Interpolation{Expr: expr.(Expression), GraphNode: NewNode(pos(c.pos))}
+    if unescaped != nil {
+      intr.Unescaped = true
+    }
+    tag.Block = &TextList{Nodes: []Node{intr}, GraphNode: NewNode(pos(c.pos))}
+  }
+  return tag, nil
 }
 
 TagName <- [_a-zA-Z] [_-:a-zA-Z0-9]* {
@@ -216,7 +229,7 @@ Each <- _ "each" __ v1:Variable v2:(_ ',' _ Variable)? _ "in" _ expr:Expression 
   return eachElem, nil
 }
 
-Assignment <- _ vr:Variable _ '=' _ expr:Expression _ NL {
+Assignment <- _ '-' _ ("var" / "let" / "const") __ vr:Variable _ '=' _ expr:Expression _ NL {
   return &Assignment{Variable: vr.(*Variable), Expression: expr.(Expression), GraphNode: NewNode(pos(c.pos))}, nil
 }
 

@@ -230,8 +230,8 @@ each v in Items
 
 func Test_Assignment(t *testing.T) {
 	res, err := run(`
-vrb = "test"
-vrb = "test2"
+- var vrb = "test"
+- var vrb = "test2"
 p #{vrb}
 `, nil)
 
