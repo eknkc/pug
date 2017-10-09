@@ -11,237 +11,25 @@
 Package pug.go is an elegant templating engine for Go Programming Language.
 It is a port of Pug template engine, previously known as Jade.
 
-**This is highly experimental. Do not use.**
+Pug.go compiles .pug templates to standard go templates (<a href="https://golang.org/pkg/html/template/">https://golang.org/pkg/html/template/</a>) and returns a `*template.Template` instance.
 
-### Tags
-A tag is simply a word:
+While there is no JavaScript environment present, Pug.go provides basic expression support over go template syntax. Such as `a(href="/user/" + UserId)` would concatenate two strings. You can use arithmetic, logical and comparison operators as well as ternery if operator.
 
+Please check *Pug Language Reference* for details: <a href="https://pugjs.org/api/getting-started.html">https://pugjs.org/api/getting-started.html</a>.
 
-	html
+Differences between Pug and Pug.go (items with checkboxes are planned, just not present yet)
 
-is converted to
+- [ ] Multiline attributes are not supported
+- [ ] `&attributes` syntax is not supported
+- [ ] `case` statement is not supported
+- [ ] Filters are not supported
+- [ ] Mixin rest arguments are not supported.
+- `while` loops are not supported as Go templates do not provide it. We could use recursive templates or channel range loops etc but that would be unnecessary complexity.
+- Unbuffered code blocks are not possible as we don't have a JS environment. However it is possible to define variables using `- var x = "foo"` syntax as an exception.
 
+Apart from these missing features, everything in the language reference should be supported.
 
-	<html></html>
-
-It is possible to add ID and CLASS attributes to tags:
-
-
-	div#main
-	span.time
-
-are converted to
-
-
-	<div id="main"></div>
-	<span class="time"></span>
-
-Any arbitrary attribute name / value pair can be added this way:
-
-
-	a(href="<a href="http://www.google.com">http://www.google.com</a>")
-
-You can mix multiple attributes together
-
-
-	a#someid(href="/" title="Main Page").main.link Click Link
-
-gets converted to
-
-
-	<a id="someid" class="main link" href="/" title="Main Page">Click Link</a>
-
-### Doctypes
-To add a doctype, use `doctype` keyword:
-
-
-	doctype transitional
-	// <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "<a href="http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd</a>">
-	
-	doctype html
-	// <!DOCTYPE html>
-
-Available options: `html`, `xml`, `transitional`, `strict`, `frameset`, `1.1`, `basic`, `mobile`, `plist`
-
-### Tag Content
-For single line tag text, you can just append the text after tag name:
-
-
-	p Testing!
-
-would yield
-
-
-	<p>Testing!</p>
-
-For multi line tag text, or nested tags, use indentation:
-
-
-	html
-	    head
-	        title Page Title
-	    body
-	        div#content
-	            p
-	                | This is a long page content
-	                | These lines are all part of the parent p
-	
-	                a(href="/") Go To Main Page
-
-### Data
-Input template data can be reached by key names directly. For example, assuming the template has been
-executed with following JSON data:
-
-
-	{
-	    "Name": "Ekin",
-	    "LastName": "Koc",
-	    "Repositories": [
-	        "pug",
-	        "dateformat"
-	    ],
-	    "Avatar": "/images/ekin.jpg",
-	    "Friends": 17
-	}
-
-It is possible to interpolate fields using `#{}`
-
-
-	p Welcome #{Name}!
-
-would print
-
-
-	<p>Welcome Ekin!</p>
-
-Attributes can have field names as well
-
-
-	a(title=Name href="/ekin.koc")
-
-would print
-
-
-	<a title="Ekin" href="/ekin.koc"></a>
-
-### Expressions
-Pug can expand basic expressions. For example, it is possible to concatenate strings with + operator:
-
-
-	p Welcome #{Name + " " + LastName}
-
-Arithmetic expressions are also supported:
-
-
-	p You need #{50 - Friends} more friends to reach 50!
-
-Expressions can be used within attributes
-
-
-	img(alt=Name + " " + LastName src=Avatar)
-
-### Variables
-It is possible to define dynamic variables within templates
-
-
-	div
-	    fullname = Name + " " + LastName
-	    p Welcome #{fullname}
-
-### Conditions
-For conditional blocks, it is possible to use `if <expression>`
-
-
-	div
-	    if Friends > 10
-	        p You have more than 10 friends
-	    else if Friends > 5
-	        p You have more than 5 friends
-	    else
-	        p You need more friends
-
-Again, it is possible to use arithmetic and boolean operators
-
-
-	div
-	    if Name == "Ekin" && LastName == "Koc"
-	        p Hey! I know you..
-
-### Iterations
-It is possible to iterate over arrays and maps using `each`:
-
-
-	each repo in Repositories
-	    p #{repo}
-
-would print
-
-
-	p pug
-	p dateformat
-
-It is also possible to iterate over values and indexes at the same time
-
-
-	each i, repo in Repositories
-	    p(class=i % 2 == 0 ? "even" : "odd") #{repo}
-
-### Includes
-A template can include other templates using `include`:
-
-
-	a.pug
-	    p this is template a
-	
-	b.pug
-	    p this is template b
-	
-	c.pug
-	    div
-	        include a
-	        include b
-
-gets compiled to
-
-
-	div
-	    p this is template a
-	    p this is template b
-
-### Inheritance
-A template can inherit other templates. In order to inherit another template, an `extends` keyword should be used.
-Parent template can define several named blocks and child template can modify the blocks.
-
-
-	master.pug
-	    doctype html
-	    html
-	        head
-	            block meta
-	                meta(name="description" content="This is a great website")
-	
-	            title
-	                block title
-	                    | Default title
-	        body
-	            block content
-	
-	subpage.pug
-	    extends master
-	
-	    block title
-	        | Some sub page!
-	
-	    block append meta
-	        // This will be added after the description meta tag. It is also possible
-	        // to prepend something to an existing block
-	        meta(name="keywords" content="foo bar")
-	
-	    block content
-	        div#main
-	            p Some content here
-
-License
+### License
 (The MIT License)
 
 Copyright (c) 2017 Ekin Koc <ekin@eknkc.com>
@@ -270,32 +58,44 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 
-## <a name="CompileFile">func</a> [CompileFile](/src/target/pug.go?s=900:981#L46)
+## <a name="CompileFile">func</a> [CompileFile](/src/target/pug.go?s=1524:1605#L52)
 ``` go
 func CompileFile(filename string, options ...Options) (*template.Template, error)
 ```
+Parses and compiles the contents of supplied filename. Returns corresponding Go Template (html/templates) instance.
+Necessary runtime functions will be injected and the template will be ready to be executed
 
 
-## <a name="CompileString">func</a> [CompileString](/src/target/pug.go?s=1178:1258#L55)
+
+## <a name="CompileString">func</a> [CompileString](/src/target/pug.go?s=2010:2090#L63)
 ``` go
 func CompileString(input string, options ...Options) (*template.Template, error)
 ```
+Parses and compiles the supplied template string. Returns corresponding Go Template (html/templates) instance.
+Necessary runtime functions will be injected and the template will be ready to be executed
 
 
-## <a name="ParseFile">func</a> [ParseFile](/src/target/pug.go?s=1454:1521#L64)
+
+## <a name="ParseFile">func</a> [ParseFile](/src/target/pug.go?s=2509:2576#L74)
 ``` go
 func ParseFile(filename string, options ...Options) (string, error)
 ```
+Parses the contents of supplied filename template and return the Go Template source You would not be using this unless debugging / checking the output.
+Please use Compile method to obtain a template instance directly
 
 
-## <a name="ParseString">func</a> [ParseString](/src/target/pug.go?s=1601:1667#L68)
+
+## <a name="ParseString">func</a> [ParseString](/src/target/pug.go?s=2865:2931#L80)
 ``` go
 func ParseString(input string, options ...Options) (string, error)
 ```
+Parses the supplied template string and return the Go Template source You would not be using this unless debugging / checking the output.
+Please use Compile method to obtain a template instance directly
 
 
 
-## <a name="Options">type</a> [Options](/src/target/pug.go?s=108:427#L10)
+
+## <a name="Options">type</a> [Options](/src/target/pug.go?s=108:838#L10)
 ``` go
 type Options struct {
     // Setting if pretty printing is enabled.
@@ -304,6 +104,10 @@ type Options struct {
     // Default: false
     PrettyPrint bool
 
+    // A Dir implements FileSystem using the native file system restricted to a specific directory tree.
+    //
+    // While the FileSystem.Open method takes '/'-separated paths, a Dir's string value is a filename on the native file system, not a URL, so it is separated by filepath.Separator, which isn't necessarily '/'.
+    // By default, a os package is used but you can supply a different filesystem using this option
     Dir compiler.Dir
 }
 ```
