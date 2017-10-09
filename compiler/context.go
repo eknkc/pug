@@ -93,7 +93,7 @@ func (bw *context) ParseFile(name string) (*Root, error) {
 		return nil, err
 	}
 
-	prep, _, err := preprocess(reader)
+	prep, offsets, err := preprocess(reader)
 
 	if err != nil {
 		return nil, err
@@ -102,13 +102,13 @@ func (bw *context) ParseFile(name string) (*Root, error) {
 	ret, err := Parse(name, []byte(prep))
 
 	if err != nil {
-		// if errList, ok := err.(errList); ok {
-		// 	for _, err := range errList {
-		// 		if parseErr, ok := err.(*parserError); ok {
-		// 			spew.Dump(parseErr)
-		// 		}
-		// 	}
-		// }
+		if errList, ok := err.(errList); ok {
+			for _, err := range errList {
+				if parseErr, ok := err.(*parserError); ok {
+					parseErr.prefix = fmt.Sprintf("parse error: %s, [line %d, col %d]", name, parseErr.pos.line, parseErr.pos.col-offsets[parseErr.pos.line])
+				}
+			}
+		}
 
 		return nil, err
 	}

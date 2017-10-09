@@ -48,7 +48,7 @@ func preprocess(in io.Reader) (string, lineOffsets, error) {
 
 			if indent != curindent && strings.HasPrefix(indent, curindent) {
 				out += indentToken
-				offsets[lines] += len(indentToken)
+				offsets[lines] += len([]byte(indentToken))
 
 				indentStack.PushBack(indent)
 				curindent = indent
