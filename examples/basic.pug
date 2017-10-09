@@ -6,7 +6,7 @@ html(lang="en")
       if (foo) bar(1 + 5)
   body
     h1 Pug - node template engine
-    #container.col(attr="foo" attr2!="bar")
+    #container.col(attr="foo" attr2!="bar", class=[1,2,3][2])
       if youAreUsingPug
         p You are amazing
       else

@@ -71,7 +71,9 @@ ListNode "listnode" <-
   Import /
   Extend /
   PipeText /
+  PipeExpression /
   If /
+  Unless /
   Each /
   DocType /
   Mixin /
@@ -92,19 +94,26 @@ Tag <- tag:TagHeader list:IndentedList? {
   tagElem := tag.(*Tag)
 
   if list != nil {
-    tagElem.Block = list.(*List)
+    if tagElem.Block != nil {
+      tagElem.Block = &List{GraphNode: NewNode(pos(c.pos)), Nodes: []Node{tagElem.Block, list.(Node)}}
+    } else {
+      tagElem.Block = list.(*List)
+    }
   }
 
   return tagElem, nil
 }
 
-TagHeader <- _ name:TagName attrs:TagAttributes? tl:(__ TextList?)? NL {
+TagHeader <- _ name:TagName attrs:TagAttributes? selfClose:'/'? tl:(__ TextList?)? NL {
   tag := &Tag{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
   if attrs != nil {
     tag.Attributes = attrs.([]*Attribute)
   }
   if tl != nil {
     tag.Text = toSlice(tl)[1].(*TextList)
+  }
+  if selfClose != nil {
+    tag.SelfClose = true
   }
   return tag, nil
 } / _ name:TagName attrs:TagAttributes? '.' NL text:IndentedRawText? {
@@ -114,6 +123,15 @@ TagHeader <- _ name:TagName attrs:TagAttributes? tl:(__ TextList?)? NL {
   }
   if text != nil {
     tag.Block = text.(*Text)
+  }
+  return tag, nil
+} / _ name:TagName attrs:TagAttributes? ':' block:ListNode {
+  tag := &Tag{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
+  if attrs != nil {
+    tag.Attributes = attrs.([]*Attribute)
+  }
+  if block != nil {
+    tag.Block = block.(Node)
   }
   return tag, nil
 } / _ name:TagName attrs:TagAttributes? unescaped:'!'? '=' __ expr:Expression? NL {
@@ -214,6 +232,15 @@ If <- _ "if" __ expr:Expression _ NL block:IndentedList elseNode:Else? {
   return ifElem, nil
 }
 
+Unless <- _ "unless" __ expr:Expression _ NL block:IndentedList {
+  condition := &UnaryExpression{
+    Op: "!",
+    X: expr.(Expression),
+  }
+
+  return &If{Condition: condition, PositiveBlock: block.(Node), GraphNode: NewNode(pos(c.pos))}, nil
+}
+
 Else <- _ "else" node:If {
   return node, nil
 } / _ "else" _ NL block:IndentedList {
@@ -301,11 +328,11 @@ CallArguments <- '(' head:Expression? tail:(_ ',' _ Expression)* ')' {
 
 // Import & Extend
 
-Import <- _ "include" 's'? __ file:String NL {
+Import <- _ "include" 's'? __ file:LineText NL {
   return &Import{File: file.(string), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
-Extend <- "extend" 's'? __ file:String {
+Extend <- "extend" 's'? __ file:LineText NL {
   return &Extend{File: file.(string), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
@@ -342,6 +369,16 @@ LineText <- [^\n]* {
 // Text
 PipeText <- _ ('|' / '<') _ tl:TextList NL {
   return tl, nil
+}
+
+PipeExpression <- _ mod:("=" / "!=") _ ex:Expression NL {
+  intr := &Interpolation{Expr: ex.(Expression), GraphNode: NewNode(pos(c.pos))}
+
+  if string(mod.([]byte)) == "!=" {
+    intr.Unescaped = true
+  }
+
+  return intr, nil
 }
 
 TextList <- intr:Interpolation tl:TextList {
@@ -433,7 +470,7 @@ ExpressionUnaryOp <- op:UnaryOp _ ex:ExpressionFactor {
 
 ExpressionFactor <- '(' e:Expression ')' {
   return e, nil
-} / StringExpression / NumberExpression / BooleanExpression / NilExpression / MemberExpression
+} / StringExpression / NumberExpression / BooleanExpression / NilExpression / MemberExpression / ArrayExpression
 
 StringExpression <- s:String {
   return &StringExpression{Value: s.(string), GraphNode: NewNode(pos(c.pos))}, nil
@@ -457,21 +494,47 @@ BooleanExpression <- b:Bool {
   return &BooleanExpression{Value: b.(bool), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
-MemberExpression <- field:Field member:(('.' Identifier) / (_ CallArguments))* {
+MemberExpression <- field:(Field / ArrayExpression) member:(MemberField / MemberIndex / MemberCall)* {
   memberSlice := toSlice(member)
   cur := field.(Expression)
 
   for _, m := range memberSlice {
-    mSlice := toSlice(m)
-
-    if mSlice[0] != nil && string(mSlice[0].([]byte)) == "." {
-      cur = &MemberExpression{X: cur, Name: mSlice[1].(string), GraphNode: NewNode(pos(c.pos))}
-    } else {
-      cur = &FunctionCallExpression{X: cur, Arguments: mSlice[1].([]Expression), GraphNode: NewNode(pos(c.pos))}
+    switch sub := m.(type) {
+      case string:
+        cur = &MemberExpression{X: cur, Name: sub, GraphNode: NewNode(pos(c.pos))}
+      case Expression:
+        cur = &IndexExpression{X: cur, Index: sub, GraphNode: NewNode(pos(c.pos))}
+      case []Expression:
+        cur = &FunctionCallExpression{X: cur, Arguments: sub, GraphNode: NewNode(pos(c.pos))}
     }
   }
 
   return cur, nil
+}
+
+MemberField <- '.' ident:Identifier {
+  return ident, nil
+}
+
+MemberIndex <- _ '[' _ i:Expression _ ']' {
+  return i, nil
+}
+
+MemberCall <- _ arg:CallArguments {
+  return arg, nil
+}
+
+ArrayExpression <- '[' _ head:Expression? tail:(_ ',' _ Expression)* _ ']' {
+  expressions := []Expression{}
+  if head != nil {
+    expressions = append(expressions, head.(Expression))
+  }
+  tailSlice := toSlice(tail)
+  for _, ex := range tailSlice {
+    exSlice := toSlice(ex)
+    expressions = append(expressions, exSlice[3].(Expression))
+  }
+  return &ArrayExpression{Expressions: expressions, GraphNode: NewNode(pos(c.pos))}, nil
 }
 
 Field <- variable:Variable {
@@ -500,6 +563,10 @@ BinOp <- ( "&&" / "||" ) {
 
 String "string" <- Quote ( !EscapedChar . / '\\' EscapeSequence )* Quote {
   return strconv.Unquote(string(c.text))
+}
+
+Index <- Integer {
+  return strconv.ParseInt(string(c.text), 10, 64)
 }
 
 Quote "quote" <- `"`

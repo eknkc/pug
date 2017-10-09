@@ -72,6 +72,8 @@ func preprocess(in io.Reader) (string, lineOffsets, error) {
 		out += line
 	}
 
+	out += "\n"
+
 	for indentStack.Back() != nil {
 		if indentStack.Back().Value.(string) != "" {
 			out += dedentToken

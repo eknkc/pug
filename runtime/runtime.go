@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"reflect"
+	"strings"
 )
 
 var FuncMap template.FuncMap = template.FuncMap{
@@ -13,6 +15,7 @@ var FuncMap template.FuncMap = template.FuncMap{
 	"__pug_slice":        Slice,
 	"__pug_unescape":     Unescape,
 	"__pug_unescapeattr": UnescapeAttr,
+	"__pug_classnames":   ClassNames,
 }
 
 func Binary(op string, x, y interface{}) (interface{}, error) {
@@ -131,8 +134,6 @@ func Binary(op string, x, y interface{}) (interface{}, error) {
 				switch op {
 				case "+":
 					res = sx + sy
-				case "|":
-					res = sx + " " + sy
 				case "==":
 					res = sx == sy
 				case "!=":
@@ -157,6 +158,26 @@ func Unary(op string, x interface{}) interface{} {
 	}
 
 	return x
+}
+
+func ClassNames(vars ...interface{}) (string, error) {
+	var ret = ""
+
+	for _, v := range vars {
+		if sx, ok := makeString(v); ok {
+			ret += sx + " "
+		} else if ax, ok := v.([]interface{}); ok {
+			if subnames, err := ClassNames(ax...); err != nil {
+				return "", err
+			} else if subnames != "" {
+				ret += subnames + " "
+			}
+		} else {
+			return "", fmt.Errorf("unsupported type %s used for class name", reflect.TypeOf(v))
+		}
+	}
+
+	return strings.TrimSpace(ret), nil
 }
 
 func Slice(variables ...interface{}) interface{} {

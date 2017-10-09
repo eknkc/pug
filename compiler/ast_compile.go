@@ -102,7 +102,7 @@ func (n *Tag) Compile(w Context, parent Node) (err error) {
 		return err
 	}
 
-	selfClosing := n.Text == nil && n.Block == nil && selfClosingTags[n.Name]
+	selfClosing := n.Text == nil && n.Block == nil && (selfClosingTags[n.Name] || n.SelfClose)
 
 	w.beginLine()
 	w.writef("<%s", n.Name)
@@ -160,11 +160,10 @@ func (n *Tag) fixAttributes() {
 				if sok && aok {
 					strclass.Value = strclass.Value + " " + strattr.Value
 				} else {
-					class.Value = &BinaryExpression{
+					class.Value = &FunctionCallExpression{
 						GraphNode: NewNode(class.Position),
-						Op:        "|",
-						X:         class.Value,
-						Y:         attr.Value,
+						X:         &FieldExpression{GraphNode: NewNode(class.Position), Variable: &Variable{GraphNode: NewNode(class.Position), Name: "__pug_classnames"}},
+						Arguments: []Expression{class.Value, attr.Value},
 					}
 				}
 			}
@@ -423,6 +422,28 @@ func (n *MemberExpression) Compile(w Context, parent Node) (err error) {
 	return
 }
 
+func (n *IndexExpression) Compile(w Context, parent Node) (err error) {
+	if err := n.GraphNode.Compile(w, parent); err != nil {
+		return err
+	}
+
+	w.write("(index ")
+
+	if err := n.X.Compile(w, n); err != nil {
+		return err
+	}
+
+	w.write(" ")
+
+	if err := n.Index.Compile(w, n); err != nil {
+		return err
+	}
+
+	w.write(")")
+
+	return
+}
+
 func (n *StringExpression) Compile(w Context, parent Node) (err error) {
 	if err := n.GraphNode.Compile(w, parent); err != nil {
 		return err
@@ -470,6 +491,22 @@ func (n *NilExpression) Compile(w Context, parent Node) (err error) {
 	}
 
 	w.write("(__pug_nil)")
+	return
+}
+
+func (n *ArrayExpression) Compile(w Context, parent Node) (err error) {
+	if err := n.GraphNode.Compile(w, parent); err != nil {
+		return err
+	}
+
+	w.write("(__pug_slice")
+	for _, ex := range n.Expressions {
+		w.write(" ")
+		if err := ex.Compile(w, n); err != nil {
+			return err
+		}
+	}
+	w.write(")")
 	return
 }
 
@@ -541,6 +578,16 @@ func (n *Import) Compile(w Context, parent Node) (err error) {
 
 	root := n.root()
 	file := filepath.Join(filepath.Dir(root.Filename), n.File)
+	ext := filepath.Ext(file)
+
+	if ext != ".pug" && ext != "" {
+		if data, err := w.ReadFile(file); err != nil {
+			return err
+		} else {
+			w.write(data)
+			return nil
+		}
+	}
 
 	if def, err := w.define(file); err != nil {
 		return err

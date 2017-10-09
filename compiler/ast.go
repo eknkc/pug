@@ -179,6 +179,15 @@ func (s IntegerExpression) RawValue(w Context, parent Node) *string {
 	return &val
 }
 
+type ArrayExpression struct {
+	*GraphNode
+	Expressions []Expression
+}
+
+func (s ArrayExpression) RawValue(w Context, parent Node) *string {
+	return nil
+}
+
 type BinaryExpression struct {
 	*GraphNode
 	Op string
@@ -188,7 +197,6 @@ type BinaryExpression struct {
 
 func (s BinaryExpression) RawValue(w Context, parent Node) *string {
 	s.GraphNode.Compile(w, parent)
-
 	return nil
 }
 
@@ -200,7 +208,6 @@ type UnaryExpression struct {
 
 func (s UnaryExpression) RawValue(w Context, parent Node) *string {
 	s.GraphNode.Compile(w, parent)
-
 	return nil
 }
 
@@ -212,7 +219,17 @@ type MemberExpression struct {
 
 func (s MemberExpression) RawValue(w Context, parent Node) *string {
 	s.GraphNode.Compile(w, parent)
+	return nil
+}
 
+type IndexExpression struct {
+	*GraphNode
+	X     Expression
+	Index Expression
+}
+
+func (s IndexExpression) RawValue(w Context, parent Node) *string {
+	s.GraphNode.Compile(w, parent)
 	return nil
 }
 
@@ -223,7 +240,6 @@ type FieldExpression struct {
 
 func (s FieldExpression) RawValue(w Context, parent Node) *string {
 	s.GraphNode.Compile(w, parent)
-
 	return nil
 }
 
@@ -235,7 +251,6 @@ type FunctionCallExpression struct {
 
 func (s FunctionCallExpression) RawValue(w Context, parent Node) *string {
 	s.GraphNode.Compile(w, parent)
-
 	return nil
 }
 
@@ -278,6 +293,7 @@ type Tag struct {
 	Text       *TextList
 	Name       string
 	Raw        bool
+	SelfClose  bool
 	Attributes []*Attribute
 }
 

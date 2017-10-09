@@ -50,12 +50,16 @@ func Test_Class(t *testing.T) {
 }
 
 func Test_MultiClass(t *testing.T) {
-	res, err := run(`div.test.foo.bar(class="baz")`, nil)
+	res, err := run(`
+div.test.foo.bar(class="baz")
+	p.foo(class=["bar", "baz"]): a(href="#") foo
+		| bar
+`, nil)
 
 	if err != nil {
 		t.Fatal(err.Error())
 	} else {
-		expect(res, `<div class="test foo bar baz"></div>`, t)
+		expect(res, `<div class="test foo bar baz"><p class="foo bar baz"><a href="#">foobar</a></p></div>`, t)
 	}
 }
 
@@ -79,6 +83,16 @@ func Test_EmptyAttribute(t *testing.T) {
 		t.Fatal(err.Error())
 	} else {
 		expect(res, `<div name></div>`, t)
+	}
+}
+
+func Test_SelfClose(t *testing.T) {
+	res, err := run(`div(name="foo")/`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<div name="foo" />`, t)
 	}
 }
 
@@ -122,6 +136,20 @@ func Test_Interpolation(t *testing.T) {
 	}
 }
 
+func Test_Buffered(t *testing.T) {
+	res, err := run(`
+p
+ = Key
+ != Key
+`, testStruct{Key: "<hr />"})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p>&lt;hr /&gt;<hr /></p>`, t)
+	}
+}
+
 func Test_TerneryExpression(t *testing.T) {
 	res, err := run(`| #{ B > A ? A > B ? "x" : "y" : "z" }`, map[string]int{"A": 2, "B": 3})
 
@@ -129,6 +157,44 @@ func Test_TerneryExpression(t *testing.T) {
 		t.Fatal(err.Error())
 	} else {
 		expect(res, `y`, t)
+	}
+}
+
+func Test_ArrayExpression(t *testing.T) {
+	res, err := run(`| #{ [1,2,3] }`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `[1 2 3]`, t)
+	}
+}
+
+func Test_If(t *testing.T) {
+	res, err := run(`
+if Key == "foo"
+	| foo
+else
+ | bar
+`, testStruct{Key: "foo"})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `foo`, t)
+	}
+}
+
+func Test_Unless(t *testing.T) {
+	res, err := run(`
+unless Key != "bar"
+	| foo
+`, testStruct{Key: "foo"})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `foo`, t)
 	}
 }
 
@@ -141,6 +207,16 @@ each item, i in Items
 		t.Fatal(err.Error())
 	} else {
 		expect(res, `<p class="even">test1</p><p class="odd">test2</p>`, t)
+	}
+}
+
+func Test_Index(t *testing.T) {
+	res, err := run(`p.index= Items[1]`, testStruct{Items: []string{"test1", "test2"}})
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p class="index">test2</p>`, t)
 	}
 }
 
@@ -283,7 +359,7 @@ func Test_Import(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expect(string(buf.Bytes()), "<p>Main<p>import1</p><p>import2</p></p><p>import2</p>", t)
+	expect(string(buf.Bytes()), "<style>body { color: red; }\n</style><p>Main<p>import1</p><p>import2</p></p><p>import2</p>", t)
 }
 
 func Test_Extend(t *testing.T) {

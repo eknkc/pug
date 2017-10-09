@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 )
@@ -23,6 +24,7 @@ type Context interface {
 	define(string, ...func() error) (*Define, error)
 
 	ParseFile(name string) (*Root, error)
+	ReadFile(name string) (string, error)
 	CompileFile(name string) (string, error)
 
 	String() string
@@ -66,7 +68,25 @@ func (bw *context) CompileFile(name string) (string, error) {
 	return bw.String(), nil
 }
 
+func (bw *context) ReadFile(name string) (string, error) {
+	reader, err := bw.dir.Open(name)
+
+	if err != nil {
+		return "", err
+	}
+
+	if data, err := ioutil.ReadAll(reader); err != nil {
+		return "", err
+	} else {
+		return string(data), err
+	}
+}
+
 func (bw *context) ParseFile(name string) (*Root, error) {
+	if name != "" && filepath.Ext(name) == "" {
+		name = name + ".pug"
+	}
+
 	reader, err := bw.dir.Open(name)
 
 	if err != nil {
