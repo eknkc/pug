@@ -15,6 +15,7 @@ Differences between Pug and Pug.go (items with checkboxes are planned, just not 
 - [ ] `case` statement is not supported
 - [ ] Filters are not supported
 - [ ] Mixin rest arguments are not supported.
+- Mixin blocks are not supported. Go templates do not allow variable template includes so this is tricky.
 - `while` loops are not supported as Go templates do not provide it. We could use recursive templates or channel range loops etc but that would be unnecessary complexity.
 - Unbuffered code blocks are not possible as we don't have a JS environment. However it is possible to define variables using `- var x = "foo"` syntax as an exception.
 
