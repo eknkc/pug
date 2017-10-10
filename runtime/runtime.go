@@ -1,18 +1,31 @@
 package runtime
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"reflect"
+	"sort"
 	"strings"
 )
+
+type pugmap map[string]interface{}
+
+func (pm pugmap) String() string {
+	if js, err := json.Marshal(pm); err != nil {
+		return fmt.Sprintf("%v", map[string]interface{}(pm))
+	} else {
+		return string(js)
+	}
+}
 
 var FuncMap template.FuncMap = template.FuncMap{
 	"__pug_binaryop":     Binary,
 	"__pug_unaryop":      Unary,
 	"__pug_nil":          Nil,
 	"__pug_slice":        Slice,
+	"__pug_map":          Map,
 	"__pug_unescape":     Unescape,
 	"__pug_unescapeattr": UnescapeAttr,
 	"__pug_classnames":   ClassNames,
@@ -172,12 +185,42 @@ func ClassNames(vars ...interface{}) (string, error) {
 			} else if subnames != "" {
 				ret += subnames + " "
 			}
+		} else if mx, ok := v.(pugmap); ok {
+			classes := []string{}
+			for cn, val := range mx {
+				if makeBool(val) {
+					classes = append(classes, cn)
+				}
+			}
+			sort.Strings(classes)
+			ret += strings.Join(classes, " ") + " "
 		} else {
 			return "", fmt.Errorf("unsupported type %s used for class name", reflect.TypeOf(v))
 		}
 	}
 
 	return strings.TrimSpace(ret), nil
+}
+
+func Map(variables ...interface{}) (pugmap, error) {
+	m := make(map[string]interface{})
+
+	if len(variables)%2 != 0 {
+		return m, errors.New("map should have key / value pairs as arguments")
+	}
+
+	for i := 0; i < len(variables)-1; i += 2 {
+		key := variables[i]
+		val := variables[i+1]
+
+		if keystring, ok := key.(string); ok {
+			m[keystring] = val
+		} else {
+			return m, errors.New("map keys should be strings")
+		}
+	}
+
+	return m, nil
 }
 
 func Slice(variables ...interface{}) interface{} {

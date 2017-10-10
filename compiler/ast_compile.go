@@ -510,6 +510,24 @@ func (n *ArrayExpression) Compile(w Context, parent Node) (err error) {
 	return
 }
 
+func (n *ObjectExpression) Compile(w Context, parent Node) (err error) {
+	if err := n.GraphNode.Compile(w, parent); err != nil {
+		return err
+	}
+
+	w.write("(__pug_map")
+	for key, ex := range n.Expressions {
+		w.write(" ")
+		w.write(strconv.Quote(key))
+		w.write(" ")
+		if err := ex.Compile(w, n); err != nil {
+			return err
+		}
+	}
+	w.write(")")
+	return
+}
+
 func (n *UnaryExpression) Compile(w Context, parent Node) (err error) {
 	if err := n.GraphNode.Compile(w, parent); err != nil {
 		return err

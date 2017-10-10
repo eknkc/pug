@@ -494,7 +494,7 @@ BooleanExpression <- b:Bool {
   return &BooleanExpression{Value: b.(bool), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
-MemberExpression <- field:(Field / ArrayExpression) member:(MemberField / MemberIndex / MemberCall)* {
+MemberExpression <- field:Field member:(MemberField / MemberIndex / MemberCall)* {
   memberSlice := toSlice(member)
   cur := field.(Expression)
 
@@ -537,9 +537,33 @@ ArrayExpression <- '[' _ head:Expression? tail:(_ ',' _ Expression)* _ ']' {
   return &ArrayExpression{Expressions: expressions, GraphNode: NewNode(pos(c.pos))}, nil
 }
 
+ObjectExpression <- '{' _ vals:(ObjectKey _ ':' _ Expression (_ ',' _ ObjectKey _ ':' _ Expression)*)? _ '}' {
+  items := map[string]Expression{}
+  valsSlice := toSlice(vals)
+
+  if len(valsSlice) != 0 {
+    fKey := valsSlice[0].(string)
+    fEx := valsSlice[4].(Expression);
+    items[fKey] = fEx;
+
+    rest := toSlice(valsSlice[5]);
+    for _, r := range rest {
+      rSlice := toSlice(r)
+
+      rKey := rSlice[3].(string)
+      rEx := rSlice[7].(Expression)
+      items[rKey] = rEx
+    }
+  }
+
+  return &ObjectExpression{Expressions: items, GraphNode: NewNode(pos(c.pos))}, nil
+}
+
+ObjectKey <- String / Identifier
+
 Field <- variable:Variable {
   return &FieldExpression{Variable: variable.(*Variable), GraphNode: NewNode(pos(c.pos))}, nil
-}
+} / ArrayExpression / ObjectExpression
 
 UnaryOp <- ( '+' / '-' / '!' ) {
   return string(c.text), nil

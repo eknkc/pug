@@ -63,6 +63,18 @@ div.test.foo.bar(class="baz")
 	}
 }
 
+func Test_ObjectClass(t *testing.T) {
+	res, err := run(`
+div.test.foo(class={bar: true, "baz": 5<4, buzz: 4<5})
+`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<div class="test foo bar buzz"></div>`, t)
+	}
+}
+
 func Test_Attribute(t *testing.T) {
 	res, err := run(`
 div(name="Test" @foo.bar="baz", commasep=1 unescaped!="<foo>").testclass
@@ -83,6 +95,16 @@ func Test_EmptyAttribute(t *testing.T) {
 		t.Fatal(err.Error())
 	} else {
 		expect(res, `<div name></div>`, t)
+	}
+}
+
+func Test_MapAttribute(t *testing.T) {
+	res, err := run(`div(attr={foo: "bar"})`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<div attr="{&#34;foo&#34;:&#34;bar&#34;}"></div>`, t)
 	}
 }
 

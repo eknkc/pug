@@ -188,6 +188,15 @@ func (s ArrayExpression) RawValue(w Context, parent Node) *string {
 	return nil
 }
 
+type ObjectExpression struct {
+	*GraphNode
+	Expressions map[string]Expression
+}
+
+func (s ObjectExpression) RawValue(w Context, parent Node) *string {
+	return nil
+}
+
 type BinaryExpression struct {
 	*GraphNode
 	Op string
