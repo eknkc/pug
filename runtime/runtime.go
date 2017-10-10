@@ -29,6 +29,7 @@ var FuncMap template.FuncMap = template.FuncMap{
 	"__pug_unescape":     Unescape,
 	"__pug_unescapeattr": UnescapeAttr,
 	"__pug_classnames":   ClassNames,
+	"__pug_style":        Style,
 }
 
 func Binary(op string, x, y interface{}) (interface{}, error) {
@@ -202,6 +203,23 @@ func ClassNames(vars ...interface{}) (string, error) {
 	return strings.TrimSpace(ret), nil
 }
 
+func Style(val interface{}) interface{} {
+	if mx, ok := val.(pugmap); ok {
+		styles := []string{}
+		for key, val := range mx {
+			if sval, ok := makeString(val); ok {
+				styles = append(styles, fmt.Sprintf("%s:%s", key, sval))
+			} else {
+				styles = append(styles, fmt.Sprintf("%s:%v", key, val))
+			}
+		}
+		sort.Strings(styles)
+		return template.CSS(strings.Join(styles, ";"))
+	}
+
+	return val
+}
+
 func Map(variables ...interface{}) (pugmap, error) {
 	m := make(map[string]interface{})
 
@@ -220,7 +238,7 @@ func Map(variables ...interface{}) (pugmap, error) {
 		}
 	}
 
-	return m, nil
+	return pugmap(m), nil
 }
 
 func Slice(variables ...interface{}) interface{} {

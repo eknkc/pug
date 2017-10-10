@@ -167,6 +167,16 @@ func (n *Tag) fixAttributes() {
 					}
 				}
 			}
+		} else if attr.Name == "style" {
+			if _, ok := attr.Value.(*ObjectExpression); ok {
+				attr.Value = &FunctionCallExpression{
+					GraphNode: NewNode(attr.Position),
+					X:         &FieldExpression{GraphNode: NewNode(attr.Position), Variable: &Variable{GraphNode: NewNode(attr.Position), Name: "__pug_style"}},
+					Arguments: []Expression{attr.Value},
+				}
+			}
+
+			attrs = append(attrs, attr)
 		} else {
 			attrs = append(attrs, attr)
 		}

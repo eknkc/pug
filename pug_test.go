@@ -232,6 +232,16 @@ each item, i in Items
 	}
 }
 
+func Test_Style(t *testing.T) {
+	res, err := run(`p(style="color: red"): span(style={color: "green", "font-size": 20})`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p style="color: red"><span style="color:green;font-size:20"></span></p>`, t)
+	}
+}
+
 func Test_Index(t *testing.T) {
 	res, err := run(`p.index= Items[1]`, testStruct{Items: []string{"test1", "test2"}})
 
