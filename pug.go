@@ -19,14 +19,12 @@ type Options struct {
 	// While the FileSystem.Open method takes '/'-separated paths, a Dir's string value is a filename on the native file system, not a URL, so it is separated by filepath.Separator, which isn't necessarily '/'.
 	// By default, a os package is used but you can supply a different filesystem using this option
 	Dir compiler.Dir
+
+	Funcs template.FuncMap
 }
 
 func newContext(dir compiler.Dir, options ...Options) compiler.Context {
-	opt := Options{}
-
-	if len(options) > 0 {
-		opt = options[0]
-	}
+	opt := getOptions(options)
 
 	indentString := ""
 
@@ -43,8 +41,8 @@ func newContext(dir compiler.Dir, options ...Options) compiler.Context {
 	return context
 }
 
-func compileTemplate(name string, tplstring string) (*template.Template, error) {
-	return template.New(name).Funcs(runtime.FuncMap).Parse(tplstring)
+func compileTemplate(options Options, name string, tplstring string) (*template.Template, error) {
+	return template.New(name).Funcs(options.Funcs).Funcs(runtime.FuncMap).Parse(tplstring)
 }
 
 // Parses and compiles the contents of supplied filename. Returns corresponding Go Template (html/templates) instance.
@@ -54,7 +52,7 @@ func CompileFile(filename string, options ...Options) (*template.Template, error
 	if tplstring, err := ctx.CompileFile(filename); err != nil {
 		return nil, err
 	} else {
-		return compileTemplate(filename, tplstring)
+		return compileTemplate(getOptions(options), filename, tplstring)
 	}
 }
 
@@ -65,7 +63,7 @@ func CompileString(input string, options ...Options) (*template.Template, error)
 	if tplstring, err := ctx.CompileFile(""); err != nil {
 		return nil, err
 	} else {
-		return compileTemplate("", tplstring)
+		return compileTemplate(getOptions(options), "", tplstring)
 	}
 }
 
@@ -79,4 +77,14 @@ func ParseFile(filename string, options ...Options) (string, error) {
 // Please use Compile method to obtain a template instance directly
 func ParseString(input string, options ...Options) (string, error) {
 	return newContext(compiler.StringInputDir(input), options...).CompileFile("")
+}
+
+func getOptions(o []Options) Options {
+	opt := Options{}
+
+	if len(o) > 0 {
+		opt = o[0]
+	}
+
+	return opt
 }
