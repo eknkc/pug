@@ -211,13 +211,8 @@ TagAttributeName <- '(' tn:TagAttributeNameLiteral ')' {
   return tn, nil
 } / String
 
-ClassName <- ('-' / [_:a-zA-Z0-9])+ {
-  return string(c.text), nil
-}
-
-IdName <- ('-' / [_:a-zA-Z0-9])+ {
-  return string(c.text), nil
-}
+ClassName <- Name
+IdName <- Name
 
 TagAttributeNameLiteral <- [@_a-zA-Z] [._-:a-zA-Z0-9]* {
   return string(c.text), nil
@@ -336,7 +331,7 @@ Extend <- "extend" 's'? __ file:LineText NL {
   return &Extend{File: file.(string), GraphNode: NewNode(pos(c.pos))}, nil
 }
 
-Block <- _ "block" mod:(__ ("append" / "prepend"))? __ name:Identifier NL list:IndentedList? {
+Block <- _ "block" mod:(__ ("append" / "prepend"))? __ name:Name NL list:IndentedList? {
   block := &Block{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
 
   if mod != nil {
@@ -613,6 +608,10 @@ Variable <- ident:Identifier {
 }
 
 Identifier <- [a-zA-Z_] [a-zA-Z0-9_]* {
+  return string(c.text), nil
+}
+
+Name <- [a-zA-Z0-9_] ('-' / [a-zA-Z0-9_])* {
   return string(c.text), nil
 }
 
