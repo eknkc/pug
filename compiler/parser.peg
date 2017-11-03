@@ -258,7 +258,7 @@ Assignment <- _ '-' _ ("var" / "let" / "const") __ vr:Variable _ '=' _ expr:Expr
 }
 
 // Mixin
-Mixin <- _ "mixin" __ name:Identifier _ args:MixinArguments? NL list:IndentedList {
+Mixin <- _ "mixin" __ name:Name _ args:MixinArguments? NL list:IndentedList {
   mixinElem := &Mixin{Name: name.(string), Block: list.(Node), GraphNode: NewNode(pos(c.pos))}
   if args != nil {
     mixinElem.Arguments = args.([]MixinArgument)
@@ -294,7 +294,7 @@ MixinArgument <- name:Variable def:(_ '=' _ Expression)? {
   return argElem, nil
 }
 
-MixinCall <- _ '+' name:Identifier _ args:CallArguments? NL {
+MixinCall <- _ '+' name:Name _ args:CallArguments? NL {
   mcElem := &MixinCall{Name: name.(string), GraphNode: NewNode(pos(c.pos))}
   if args != nil {
     mcElem.Arguments = args.([]Expression)
