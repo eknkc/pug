@@ -79,12 +79,13 @@ func Test_Attribute(t *testing.T) {
 	res, err := run(`
 div(name="Test" @foo.bar="baz", commasep=1 unescaped!="<foo>").testclass
 	p(style="text-align: center; color: maroon" "quoted"= "foo")
+		span.class-name#id-name
 `, nil)
 
 	if err != nil {
 		t.Fatal(err.Error())
 	} else {
-		expect(res, `<div name="Test" @foo.bar="baz" commasep="1"  unescaped="<foo>" class="testclass"><p style="text-align: center; color: maroon" quoted="foo"></p></div>`, t)
+		expect(res, `<div name="Test" @foo.bar="baz" commasep="1"  unescaped="<foo>" class="testclass"><p style="text-align: center; color: maroon" quoted="foo"><span class="class-name" id="id-name"></span></p></div>`, t)
 	}
 }
 
