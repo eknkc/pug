@@ -411,6 +411,19 @@ func Test_Extend(t *testing.T) {
 	expect(string(buf.Bytes()), "<body><p>extend-test1</p><p>mid-test2</p><p>base-test3</p><p>extend-test3-append</p></body>", t)
 }
 
+func Test_Issue_4(t *testing.T) {
+	res, err := run(`
+if true && true
+	p #{true && true}
+		`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<p>true</p>`, t)
+	}
+}
+
 func Benchmark_Parse(b *testing.B) {
 	code := `
 	!!! 5

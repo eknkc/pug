@@ -443,7 +443,7 @@ ExpressionTernery <- cnd:ExpressionBinOp rest:(_ '?' _ ExpressionTernery _ ':' _
   }, nil
 }
 
-ExpressionBinOp <- first:ExpressionCmpOp rest:( _ CmpOp _ ExpressionBinOp )* {
+ExpressionBinOp <- first:ExpressionCmpOp rest:( _ BinOp _ ExpressionBinOp )* {
   return binary(first, rest, c.pos)
 }
 
