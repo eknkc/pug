@@ -151,7 +151,7 @@ TagHeader <- _ name:TagName attrs:TagAttributes? selfClose:'/'? tl:(__ TextList?
 
 TagName <- [_a-zA-Z] [_-:a-zA-Z0-9]* {
   return string(c.text), nil
-} / &TagAttributeClass / &TagAttributeID {
+} / (&TagAttributeClass / &TagAttributeID) {
   return "div", nil
 }
 

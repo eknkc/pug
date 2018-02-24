@@ -424,6 +424,20 @@ if true && true
 	}
 }
 
+func Test_Issue_3(t *testing.T) {
+	res, err := run(`
+.cl1
+		.cl2
+			 .cl3 test
+		`, nil)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	} else {
+		expect(res, `<div class="cl1"><div class="cl2"><div class="cl3">test</div></div></div>`, t)
+	}
+}
+
 func Benchmark_Parse(b *testing.B) {
 	code := `
 	!!! 5
